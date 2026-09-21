@@ -1,0 +1,223 @@
+{
+  "schemaId": "transcript-view-v1",
+  "note": "Projection fixtures are consumer inputs only; they do not claim a running replica producer.",
+  "fixtures": [
+    {
+      "name": "manifest.complete",
+      "contractType": "manifest",
+      "shapeValid": true,
+      "value": {
+        "schemaId": "transcript-view-v1",
+        "nodeId": "10000000-0000-4000-8000-000000000001",
+        "dialogId": "20000000-0000-4000-8000-000000000001",
+        "attemptId": "30000000-0000-4000-8000-000000000001",
+        "generation": 1,
+        "textId": "50000000-0000-4000-8000-000000000001",
+        "source": {
+          "kind": "assistant_message",
+          "id": "40000000-0000-4000-8000-000000000001",
+          "index": 0,
+          "stream": "none"
+        },
+        "preview": "answer",
+        "previewTruncated": false,
+        "redaction": "none",
+        "complete": true,
+        "sizeBytes": 6,
+        "sha256": "0db52f4076c082518412afd3dd3576e2cb0c63703fd7fed5e23ade60efef31d9",
+        "chunks": [
+          {
+            "index": 0,
+            "offsetBytes": 0,
+            "artifactId": "60000000-0000-4000-8000-000000000001",
+            "sizeBytes": 6,
+            "sha256": "0db52f4076c082518412afd3dd3576e2cb0c63703fd7fed5e23ade60efef31d9"
+          }
+        ]
+      }
+    },
+    {
+      "name": "manifest.limit",
+      "contractType": "manifest",
+      "shapeValid": true,
+      "value": {
+        "schemaId": "transcript-view-v1",
+        "nodeId": "10000000-0000-4000-8000-000000000001",
+        "dialogId": "20000000-0000-4000-8000-000000000001",
+        "attemptId": "30000000-0000-4000-8000-000000000001",
+        "generation": 1,
+        "textId": "50000000-0000-4000-8000-000000000001",
+        "source": {
+          "kind": "assistant_message",
+          "id": "40000000-0000-4000-8000-000000000001",
+          "index": 0,
+          "stream": "none"
+        },
+        "preview": "answer",
+        "previewTruncated": false,
+        "redaction": "none",
+        "complete": false,
+        "sizeBytes": 536870913,
+        "sha256": "0db52f4076c082518412afd3dd3576e2cb0c63703fd7fed5e23ade60efef31d9",
+        "chunks": [],
+        "reason": "output_limit_exceeded"
+      }
+    },
+    {
+      "name": "projection.delta_final_history_replica",
+      "contractType": "projectionFixture",
+      "shapeValid": true,
+      "value": {
+        "schemaId": "transcript-view-v1",
+        "candidates": [
+          {
+            "source": "delta",
+            "messageId": "40000000-0000-4000-8000-000000000001",
+            "attemptId": "30000000-0000-4000-8000-000000000001",
+            "generation": 1,
+            "revision": 1,
+            "textHash": "0db52f4076c082518412afd3dd3576e2cb0c63703fd7fed5e23ade60efef31d9",
+            "text": "answer",
+            "final": false
+          },
+          {
+            "source": "final",
+            "messageId": "40000000-0000-4000-8000-000000000001",
+            "attemptId": "30000000-0000-4000-8000-000000000001",
+            "generation": 1,
+            "revision": 2,
+            "textHash": "0db52f4076c082518412afd3dd3576e2cb0c63703fd7fed5e23ade60efef31d9",
+            "text": "answer",
+            "final": true
+          },
+          {
+            "source": "history",
+            "messageId": "40000000-0000-4000-8000-000000000001",
+            "attemptId": "30000000-0000-4000-8000-000000000001",
+            "generation": 1,
+            "revision": 2,
+            "textHash": "0db52f4076c082518412afd3dd3576e2cb0c63703fd7fed5e23ade60efef31d9",
+            "text": "answer",
+            "final": true
+          },
+          {
+            "source": "replica",
+            "messageId": "40000000-0000-4000-8000-000000000001",
+            "attemptId": "30000000-0000-4000-8000-000000000001",
+            "generation": 1,
+            "revision": 2,
+            "textHash": "0db52f4076c082518412afd3dd3576e2cb0c63703fd7fed5e23ade60efef31d9",
+            "text": "answer",
+            "final": true
+          },
+          {
+            "source": "history",
+            "messageId": "40000000-0000-4000-8000-000000000002",
+            "attemptId": "30000000-0000-4000-8000-000000000001",
+            "generation": 1,
+            "revision": 3,
+            "textHash": "0db52f4076c082518412afd3dd3576e2cb0c63703fd7fed5e23ade60efef31d9",
+            "text": "answer",
+            "final": true
+          }
+        ],
+        "expected": [
+          {
+            "messageId": "40000000-0000-4000-8000-000000000001",
+            "attemptId": "30000000-0000-4000-8000-000000000001",
+            "generation": 1,
+            "textHash": "0db52f4076c082518412afd3dd3576e2cb0c63703fd7fed5e23ade60efef31d9",
+            "text": "answer",
+            "final": true,
+            "sources": [
+              "delta",
+              "final",
+              "history",
+              "replica"
+            ]
+          },
+          {
+            "messageId": "40000000-0000-4000-8000-000000000002",
+            "attemptId": "30000000-0000-4000-8000-000000000001",
+            "generation": 1,
+            "textHash": "0db52f4076c082518412afd3dd3576e2cb0c63703fd7fed5e23ade60efef31d9",
+            "text": "answer",
+            "final": true,
+            "sources": [
+              "history"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "invalid.manifest_extra",
+      "contractType": "manifest",
+      "shapeValid": false,
+      "value": {
+        "schemaId": "transcript-view-v1",
+        "nodeId": "10000000-0000-4000-8000-000000000001",
+        "dialogId": "20000000-0000-4000-8000-000000000001",
+        "attemptId": "30000000-0000-4000-8000-000000000001",
+        "generation": 1,
+        "textId": "50000000-0000-4000-8000-000000000001",
+        "source": {
+          "kind": "assistant_message",
+          "id": "40000000-0000-4000-8000-000000000001",
+          "index": 0,
+          "stream": "none"
+        },
+        "preview": "answer",
+        "previewTruncated": false,
+        "redaction": "none",
+        "complete": true,
+        "sizeBytes": 6,
+        "sha256": "0db52f4076c082518412afd3dd3576e2cb0c63703fd7fed5e23ade60efef31d9",
+        "chunks": [
+          {
+            "index": 0,
+            "offsetBytes": 0,
+            "artifactId": "60000000-0000-4000-8000-000000000001",
+            "sizeBytes": 6,
+            "sha256": "0db52f4076c082518412afd3dd3576e2cb0c63703fd7fed5e23ade60efef31d9"
+          }
+        ],
+        "ownerId": "browser-owner"
+      }
+    },
+    {
+      "name": "invalid.manifest_chunk_oversize",
+      "contractType": "manifest",
+      "shapeValid": false,
+      "value": {
+        "schemaId": "transcript-view-v1",
+        "nodeId": "10000000-0000-4000-8000-000000000001",
+        "dialogId": "20000000-0000-4000-8000-000000000001",
+        "attemptId": "30000000-0000-4000-8000-000000000001",
+        "generation": 1,
+        "textId": "50000000-0000-4000-8000-000000000001",
+        "source": {
+          "kind": "assistant_message",
+          "id": "40000000-0000-4000-8000-000000000001",
+          "index": 0,
+          "stream": "none"
+        },
+        "preview": "answer",
+        "previewTruncated": false,
+        "redaction": "none",
+        "complete": true,
+        "sizeBytes": 6,
+        "sha256": "0db52f4076c082518412afd3dd3576e2cb0c63703fd7fed5e23ade60efef31d9",
+        "chunks": [
+          {
+            "index": 0,
+            "offsetBytes": 0,
+            "artifactId": "60000000-0000-4000-8000-000000000001",
+            "sizeBytes": 16777217,
+            "sha256": "0db52f4076c082518412afd3dd3576e2cb0c63703fd7fed5e23ade60efef31d9"
+          }
+        ]
+      }
+    }
+  ]
+}

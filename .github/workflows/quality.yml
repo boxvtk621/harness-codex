@@ -1,0 +1,38 @@
+name: quality
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: boxvtk621/homelab-telegram-panel
+          ref: 9736f8c74e2f242cbe63dda3b0c74b42bc8d04d9
+          path: .source/homelab-telegram-panel
+          persist-credentials: false
+      - uses: actions/setup-go@v5
+        with:
+          go-version: 1.26.5
+          cache: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.18.0
+          cache: npm
+      - run: make quality SOURCE_REPO=.source/homelab-telegram-panel
+
+  container-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - run: make image IMAGE=harness-codex:ci
+      - run: make smoke IMAGE=harness-codex:ci

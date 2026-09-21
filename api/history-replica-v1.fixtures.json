@@ -1,0 +1,70 @@
+{
+  "validPage": {
+    "schemaId": "harness-history-export-v1",
+    "schemaSHA256": "0bf89d20d3e8a5235248257fca1d64ce3af00c33eab3dbfc83a1c680f15ec221",
+    "streamId": "013eb707-f70e-5d80-a2f0-777e7855ae0f",
+    "identity": {
+      "ownerId": "1-1",
+      "logicalDialogId": "10000000-0000-4000-8000-000000000001",
+      "nodeId": "10000000-0000-4000-8000-000000000002",
+      "nodeDialogId": "10000000-0000-4000-8000-000000000003",
+      "bindingGeneration": 7
+    },
+    "afterSeq": 0,
+    "records": [
+      {
+        "streamSeq": 1,
+        "type": "entry",
+        "recordId": "3dc8bb73-0746-51ed-9061-ebe411b34388",
+        "entityId": "10000000-0000-4000-8000-000000000010",
+        "revision": 1,
+        "payload": {
+          "entryId": "10000000-0000-4000-8000-000000000010",
+          "origin": {
+            "nodeId": "10000000-0000-4000-8000-000000000002",
+            "nodeDialogId": "10000000-0000-4000-8000-000000000003",
+            "authorEventId": "10000000-0000-4000-8000-000000000002:1"
+          },
+          "logicalDialogId": "10000000-0000-4000-8000-000000000001",
+          "messageId": "10000000-0000-4000-8000-000000000010",
+          "requestId": "10000000-0000-4000-8000-000000000011",
+          "kind": "message",
+          "role": "user",
+          "content": {
+            "kind": "inline",
+            "content": "hello"
+          },
+          "createdAt": "2026-09-17T00:00:00Z",
+          "sourceGeneration": 0,
+          "executionOrdinal": 1,
+          "executionStatus": "recorded"
+        },
+        "recordHash": "941eca515c25207dea8b52a35c417fccd0b9976c213de49487e75c3dfe2455c4",
+        "prevHash": "759ca38cc086b3cdf40bd4b439990fcadd022433470d717cd5a3bd040c6a4737",
+        "chainHash": "78369990369bab26b6ce38bb72ba96a7de1f8f654a03ea8df4b1822fe2c39dc3"
+      }
+    ],
+    "nextAfterSeq": null,
+    "checkpoint": {
+      "throughSeq": 1,
+      "chainHash": "78369990369bab26b6ce38bb72ba96a7de1f8f654a03ea8df4b1822fe2c39dc3",
+      "dialogVersion": 2,
+      "queueRevision": 3,
+      "entriesHash": "941eca515c25207dea8b52a35c417fccd0b9976c213de49487e75c3dfe2455c4",
+      "factsHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "receiptsHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "textHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "assetManifestHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "effectsSummary": {
+        "entryCount": 1,
+        "factCount": 0,
+        "receiptRevisionCount": 0,
+        "textManifestCount": 0,
+        "textChunkCount": 0,
+        "assetManifestCount": 0
+      },
+      "ready": true,
+      "capturedAt": "2026-09-17T00:00:01Z"
+    }
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "name": "harness-codex-contract-checks",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=24.18.0"
+  },
+  "scripts": {
+    "contracts": "node api/check-harness-v1-schema.mjs && node api/check-history-replica-v1.mjs && node api/check-transcript-view-v1.mjs"
+  },
+  "devDependencies": {
+    "ajv": "8.20.0",
+    "ajv-formats": "3.0.1"
+  }
+}

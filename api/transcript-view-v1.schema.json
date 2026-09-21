@@ -1,0 +1,607 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://homelab.local/schemas/transcript-view-v1.schema.json",
+  "title": "Harness transcript view v1",
+  "description": "Versioned safe-text manifests and semantic projection fixtures. This does not extend harness-wire-v2.",
+  "oneOf": [
+    {
+      "$ref": "#/$defs/manifest"
+    },
+    {
+      "$ref": "#/$defs/projectionFixture"
+    }
+  ],
+  "$defs": {
+    "source": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "enum": [
+                "assistant_message",
+                "tool_input",
+                "tool_result"
+              ]
+            },
+            "id": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+            },
+            "index": {
+              "const": 0
+            },
+            "stream": {
+              "const": "none"
+            }
+          },
+          "required": [
+            "kind",
+            "id",
+            "index",
+            "stream"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "tool_output"
+            },
+            "id": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+            },
+            "index": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "stream": {
+              "enum": [
+                "stdout",
+                "stderr",
+                "result",
+                "diagnostic"
+              ]
+            }
+          },
+          "required": [
+            "kind",
+            "id",
+            "index",
+            "stream"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "chunk": {
+      "type": "object",
+      "properties": {
+        "index": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "offsetBytes": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "artifactId": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+        },
+        "sizeBytes": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 16777216
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      },
+      "required": [
+        "index",
+        "offsetBytes",
+        "artifactId",
+        "sizeBytes",
+        "sha256"
+      ],
+      "additionalProperties": false
+    },
+    "manifest": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "schemaId": {
+              "const": "transcript-view-v1"
+            },
+            "nodeId": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+            },
+            "dialogId": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+            },
+            "attemptId": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+            },
+            "generation": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            },
+            "textId": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+            },
+            "source": {
+              "oneOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "enum": [
+                        "assistant_message",
+                        "tool_input",
+                        "tool_result"
+                      ]
+                    },
+                    "id": {
+                      "type": "string",
+                      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+                    },
+                    "index": {
+                      "const": 0
+                    },
+                    "stream": {
+                      "const": "none"
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "id",
+                    "index",
+                    "stream"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "const": "tool_output"
+                    },
+                    "id": {
+                      "type": "string",
+                      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+                    },
+                    "index": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "stream": {
+                      "enum": [
+                        "stdout",
+                        "stderr",
+                        "result",
+                        "diagnostic"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "id",
+                    "index",
+                    "stream"
+                  ],
+                  "additionalProperties": false
+                }
+              ]
+            },
+            "preview": {
+              "type": "string",
+              "maxLength": 65536,
+              "x-utf8MaxBytes": 65536
+            },
+            "previewTruncated": {
+              "type": "boolean"
+            },
+            "redaction": {
+              "enum": [
+                "none",
+                "applied"
+              ]
+            },
+            "sizeBytes": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 536870912
+            },
+            "sha256": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "complete": {
+              "const": true
+            },
+            "chunks": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "index": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "offsetBytes": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "artifactId": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+                  },
+                  "sizeBytes": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 16777216
+                  },
+                  "sha256": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{64}$"
+                  }
+                },
+                "required": [
+                  "index",
+                  "offsetBytes",
+                  "artifactId",
+                  "sizeBytes",
+                  "sha256"
+                ],
+                "additionalProperties": false
+              },
+              "maxItems": 64
+            }
+          },
+          "required": [
+            "schemaId",
+            "nodeId",
+            "dialogId",
+            "attemptId",
+            "generation",
+            "textId",
+            "source",
+            "preview",
+            "previewTruncated",
+            "redaction",
+            "sizeBytes",
+            "sha256",
+            "complete",
+            "chunks"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "schemaId": {
+              "const": "transcript-view-v1"
+            },
+            "nodeId": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+            },
+            "dialogId": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+            },
+            "attemptId": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+            },
+            "generation": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            },
+            "textId": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+            },
+            "source": {
+              "oneOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "enum": [
+                        "assistant_message",
+                        "tool_input",
+                        "tool_result"
+                      ]
+                    },
+                    "id": {
+                      "type": "string",
+                      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+                    },
+                    "index": {
+                      "const": 0
+                    },
+                    "stream": {
+                      "const": "none"
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "id",
+                    "index",
+                    "stream"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "const": "tool_output"
+                    },
+                    "id": {
+                      "type": "string",
+                      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+                    },
+                    "index": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "stream": {
+                      "enum": [
+                        "stdout",
+                        "stderr",
+                        "result",
+                        "diagnostic"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "id",
+                    "index",
+                    "stream"
+                  ],
+                  "additionalProperties": false
+                }
+              ]
+            },
+            "preview": {
+              "type": "string",
+              "maxLength": 65536,
+              "x-utf8MaxBytes": 65536
+            },
+            "previewTruncated": {
+              "type": "boolean"
+            },
+            "redaction": {
+              "enum": [
+                "none",
+                "applied"
+              ]
+            },
+            "sizeBytes": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "sha256": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "complete": {
+              "const": false
+            },
+            "reason": {
+              "const": "output_limit_exceeded"
+            },
+            "chunks": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "index": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "offsetBytes": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "artifactId": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+                  },
+                  "sizeBytes": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 16777216
+                  },
+                  "sha256": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{64}$"
+                  }
+                },
+                "required": [
+                  "index",
+                  "offsetBytes",
+                  "artifactId",
+                  "sizeBytes",
+                  "sha256"
+                ],
+                "additionalProperties": false
+              },
+              "maxItems": 0
+            }
+          },
+          "required": [
+            "schemaId",
+            "nodeId",
+            "dialogId",
+            "attemptId",
+            "generation",
+            "textId",
+            "source",
+            "preview",
+            "previewTruncated",
+            "redaction",
+            "sizeBytes",
+            "sha256",
+            "complete",
+            "reason",
+            "chunks"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "projectionFixture": {
+      "type": "object",
+      "properties": {
+        "schemaId": {
+          "const": "transcript-view-v1"
+        },
+        "candidates": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "source": {
+                "enum": [
+                  "delta",
+                  "final",
+                  "history",
+                  "replica"
+                ]
+              },
+              "messageId": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+              },
+              "attemptId": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+              },
+              "generation": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              },
+              "revision": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "textHash": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "text": {
+                "type": "string",
+                "maxLength": 65536,
+                "x-utf8MaxBytes": 65536
+              },
+              "final": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "source",
+              "messageId",
+              "attemptId",
+              "generation",
+              "revision",
+              "textHash",
+              "text",
+              "final"
+            ],
+            "additionalProperties": false
+          },
+          "maxItems": 100
+        },
+        "expected": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "messageId": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+              },
+              "attemptId": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+              },
+              "generation": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              },
+              "textHash": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "text": {
+                "type": "string",
+                "maxLength": 65536,
+                "x-utf8MaxBytes": 65536
+              },
+              "final": {
+                "type": "boolean"
+              },
+              "sources": {
+                "type": "array",
+                "items": {
+                  "enum": [
+                    "delta",
+                    "final",
+                    "history",
+                    "replica"
+                  ]
+                },
+                "maxItems": 4
+              }
+            },
+            "required": [
+              "messageId",
+              "attemptId",
+              "generation",
+              "textHash",
+              "text",
+              "final",
+              "sources"
+            ],
+            "additionalProperties": false
+          },
+          "maxItems": 100
+        }
+      },
+      "required": [
+        "schemaId",
+        "candidates",
+        "expected"
+      ],
+      "additionalProperties": false
+    }
+  }
+}

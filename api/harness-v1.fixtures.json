@@ -1,0 +1,2504 @@
+{
+  "protocolVersion": 1,
+  "schemaId": "harness-wire-v2",
+  "note": "Validators prove wire shape only. authoritativeCases require B1/U1 ownership, CAS, idempotency and state-machine checks.",
+  "fixtures": [
+    {
+      "name": "command.1.dialog.create",
+      "wireType": "command",
+      "shapeValid": true,
+      "value": {
+        "protocolVersion": 1,
+        "schemaId": "harness-wire-v2",
+        "commandId": "10000000-0000-4000-8000-000000000001",
+        "kind": "dialog.create",
+        "target": {
+          "nodeId": "20000000-0000-4000-8000-000000000001"
+        },
+        "expected": {
+          "registryVersion": 1
+        },
+        "payload": {
+          "title": "test"
+        }
+      }
+    },
+    {
+      "name": "command.2.message.enqueue",
+      "wireType": "command",
+      "shapeValid": true,
+      "value": {
+        "protocolVersion": 1,
+        "schemaId": "harness-wire-v2",
+        "commandId": "10000000-0000-4000-8000-000000000001",
+        "kind": "message.enqueue",
+        "target": {
+          "nodeId": "20000000-0000-4000-8000-000000000001",
+          "dialogId": "30000000-0000-4000-8000-000000000001"
+        },
+        "expected": {
+          "dialogVersion": 1
+        },
+        "payload": {
+          "text": "test"
+        }
+      }
+    },
+    {
+      "name": "command.3.message.steer",
+      "wireType": "command",
+      "shapeValid": true,
+      "value": {
+        "protocolVersion": 1,
+        "schemaId": "harness-wire-v2",
+        "commandId": "10000000-0000-4000-8000-000000000001",
+        "kind": "message.steer",
+        "target": {
+          "nodeId": "20000000-0000-4000-8000-000000000001",
+          "dialogId": "30000000-0000-4000-8000-000000000001",
+          "attemptId": "60000000-0000-4000-8000-000000000001",
+          "messageId": "40000000-0000-4000-8000-000000000001"
+        },
+        "expected": {
+          "attemptGeneration": 1,
+          "messageVersion": 1
+        },
+        "payload": {}
+      }
+    },
+    {
+      "name": "command.4.request.cancel",
+      "wireType": "command",
+      "shapeValid": true,
+      "value": {
+        "protocolVersion": 1,
+        "schemaId": "harness-wire-v2",
+        "commandId": "10000000-0000-4000-8000-000000000001",
+        "kind": "request.cancel",
+        "target": {
+          "nodeId": "20000000-0000-4000-8000-000000000001",
+          "requestId": "50000000-0000-4000-8000-000000000001"
+        },
+        "expected": {
+          "requestVersion": 1
+        },
+        "payload": {}
+      }
+    },
+    {
+      "name": "command.5.attempt.stop",
+      "wireType": "command",
+      "shapeValid": true,
+      "value": {
+        "protocolVersion": 1,
+        "schemaId": "harness-wire-v2",
+        "commandId": "10000000-0000-4000-8000-000000000001",
+        "kind": "attempt.stop",
+        "target": {
+          "nodeId": "20000000-0000-4000-8000-000000000001",
+          "attemptId": "60000000-0000-4000-8000-000000000001"
+        },
+        "expected": {
+          "attemptGeneration": 1
+        },
+        "payload": {}
+      }
+    },
+    {
+      "name": "command.6.queue.resume",
+      "wireType": "command",
+      "shapeValid": true,
+      "value": {
+        "protocolVersion": 1,
+        "schemaId": "harness-wire-v2",
+        "commandId": "10000000-0000-4000-8000-000000000001",
+        "kind": "queue.resume",
+        "target": {
+          "nodeId": "20000000-0000-4000-8000-000000000001"
+        },
+        "expected": {
+          "queueVersion": 1
+        },
+        "payload": {}
+      }
+    },
+    {
+      "name": "command.7.attempt.retry",
+      "wireType": "command",
+      "shapeValid": true,
+      "value": {
+        "protocolVersion": 1,
+        "schemaId": "harness-wire-v2",
+        "commandId": "10000000-0000-4000-8000-000000000001",
+        "kind": "attempt.retry",
+        "target": {
+          "nodeId": "20000000-0000-4000-8000-000000000001",
+          "attemptId": "60000000-0000-4000-8000-000000000001"
+        },
+        "expected": {
+          "attemptGeneration": 1
+        },
+        "payload": {
+          "acknowledgeKnownEffects": false
+        }
+      }
+    },
+    {
+      "name": "command.8.approval.respond",
+      "wireType": "command",
+      "shapeValid": true,
+      "value": {
+        "protocolVersion": 1,
+        "schemaId": "harness-wire-v2",
+        "commandId": "10000000-0000-4000-8000-000000000001",
+        "kind": "approval.respond",
+        "target": {
+          "nodeId": "20000000-0000-4000-8000-000000000001",
+          "approvalId": "90000000-0000-4000-8000-000000000001",
+          "attemptId": "60000000-0000-4000-8000-000000000001"
+        },
+        "expected": {
+          "approvalVersion": 1,
+          "attemptGeneration": 1
+        },
+        "payload": {
+          "decision": "allow_once",
+          "actionHash": "0000000000000000000000000000000000000000000000000000000000000000"
+        }
+      }
+    },
+    {
+      "name": "command.9.input.respond",
+      "wireType": "command",
+      "shapeValid": true,
+      "value": {
+        "protocolVersion": 1,
+        "schemaId": "harness-wire-v2",
+        "commandId": "10000000-0000-4000-8000-000000000001",
+        "kind": "input.respond",
+        "target": {
+          "nodeId": "20000000-0000-4000-8000-000000000001",
+          "inputRequestId": "a0000000-0000-4000-8000-000000000001",
+          "attemptId": "60000000-0000-4000-8000-000000000001"
+        },
+        "expected": {
+          "inputVersion": 1,
+          "attemptGeneration": 1
+        },
+        "payload": {
+          "text": "test"
+        }
+      }
+    },
+    {
+      "name": "command.10.dialog.delete",
+      "wireType": "command",
+      "shapeValid": true,
+      "value": {
+        "protocolVersion": 1,
+        "schemaId": "harness-wire-v2",
+        "commandId": "10000000-0000-4000-8000-000000000001",
+        "kind": "dialog.delete",
+        "target": {
+          "nodeId": "20000000-0000-4000-8000-000000000001",
+          "dialogId": "30000000-0000-4000-8000-000000000001"
+        },
+        "expected": {
+          "dialogVersion": 1
+        },
+        "payload": {}
+      }
+    },
+    {
+      "name": "event.1.node.state_changed",
+      "wireType": "event",
+      "shapeValid": true,
+      "value": {
+        "protocolVersion": 1,
+        "schemaId": "harness-wire-v2",
+        "nodeId": "20000000-0000-4000-8000-000000000001",
+        "seq": 1,
+        "epoch": 1,
+        "type": "node.state_changed",
+        "entityId": "70000000-0000-4000-8000-000000000001",
+        "entityVersion": 1,
+        "observedAt": "2026-09-09T00:00:00Z",
+        "completeness": "complete",
+        "payload": {
+          "transportAvailability": "online",
+          "engineReadiness": "ready",
+          "occupancy": "idle",
+          "queuePaused": false,
+          "queueVersion": 1,
+          "pendingCount": 0,
+          "blockedReasons": [],
+          "activeAttemptId": null
+        }
+      }
+    },
+    {
+      "name": "event.2.queue.changed",
+      "wireType": "event",
+      "shapeValid": true,
+      "value": {
+        "protocolVersion": 1,
+        "schemaId": "harness-wire-v2",
+        "nodeId": "20000000-0000-4000-8000-000000000001",
+        "seq": 2,
+        "epoch": 1,
+        "type": "queue.changed",
+        "entityId": "70000000-0000-4000-8000-000000000001",
+        "entityVersion": 1,
+        "observedAt": "2026-09-09T00:00:00Z",
+        "completeness": "complete",
+        "payload": {
+          "queueVersion": 2,
+          "pendingCount": 1,
+          "activeAttemptId": "60000000-0000-4000-8000-000000000001",
+          "queuePaused": false
+        }
+      }
+    },
+    {
+      "name": "event.3.message.accepted",
+      "wireType": "event",
+      "shapeValid": true,
+      "value": {
+        "protocolVersion": 1,
+        "schemaId": "harness-wire-v2",
+        "nodeId": "20000000-0000-4000-8000-000000000001",
+        "seq": 3,
+        "epoch": 1,
+        "type": "message.accepted",
+        "entityId": "70000000-0000-4000-8000-000000000001",
+        "entityVersion": 1,
+        "observedAt": "2026-09-09T00:00:00Z",
+        "completeness": "complete",
+        "payload": {
+          "dialogId": "30000000-0000-4000-8000-000000000001",
+          "messageId": "40000000-0000-4000-8000-000000000001",
+          "requestId": "50000000-0000-4000-8000-000000000001",
+          "sequence": 1,
+          "disposition": "queued"
+        }
+      }
+    },
+    {
+      "name": "event.4.message.disposition_changed",
+      "wireType": "event",
+      "shapeValid": true,
+      "value": {
+        "protocolVersion": 1,
+        "schemaId": "harness-wire-v2",
+        "nodeId": "20000000-0000-4000-8000-000000000001",
+        "seq": 4,
+        "epoch": 1,
+        "type": "message.disposition_changed",
+        "entityId": "70000000-0000-4000-8000-000000000001",
+        "entityVersion": 1,
+        "observedAt": "2026-09-09T00:00:00Z",
+        "completeness": "complete",
+        "payload": {
+          "messageId": "40000000-0000-4000-8000-000000000001",
+          "from": "queued",
+          "to": "steer_pending",
+          "reasonCode": "steer_requested"
+        }
+      }
+    },
+    {
+      "name": "event.5.attempt.dispatching",
+      "wireType": "event",
+      "shapeValid": true,
+      "value": {
+        "protocolVersion": 1,
+        "schemaId": "harness-wire-v2",
+        "nodeId": "20000000-0000-4000-8000-000000000001",
+        "seq": 5,
+        "epoch": 1,
+        "type": "attempt.dispatching",
+        "entityId": "70000000-0000-4000-8000-000000000001",
+        "entityVersion": 1,
+        "attemptId": "60000000-0000-4000-8000-000000000001",
+        "dialogId": "30000000-0000-4000-8000-000000000001",
+        "observedAt": "2026-09-09T00:00:00Z",
+        "completeness": "complete",
+        "payload": {
+          "requestId": "50000000-0000-4000-8000-000000000001",
+          "generation": 1,
+          "contextBoundaryMessageId": "40000000-0000-4000-8000-000000000001",
+          "policyRevision": "HL-A-23@1",
+          "policyHash": "0000000000000000000000000000000000000000000000000000000000000000"
+        }
+      }
+    },
+    {
+      "name": "event.6.attempt.started",
+      "wireType": "event",
+      "shapeValid": true,
+      "value": {
+        "protocolVersion": 1,
+        "schemaId": "harness-wire-v2",
+        "nodeId": "20000000-0000-4000-8000-000000000001",
+        "seq": 6,
+        "epoch": 1,
+        "type": "attempt.started",
+        "entityId": "70000000-0000-4000-8000-000000000001",
+        "entityVersion": 1,
+        "attemptId": "60000000-0000-4000-8000-000000000001",
+        "dialogId": "30000000-0000-4000-8000-000000000001",
+        "observedAt": "2026-09-09T00:00:00Z",
+        "completeness": "complete",
+        "payload": {
+          "requestId": "50000000-0000-4000-8000-000000000001",
+          "generation": 1
+        }
+      }
+    },
+    {
+      "name": "event.7.attempt.waiting_input",
+      "wireType": "event",
+      "shapeValid": true,
+      "value": {
+        "protocolVersion": 1,
+        "schemaId": "harness-wire-v2",
+        "nodeId": "20000000-0000-4000-8000-000000000001",
+        "seq": 7,
+        "epoch": 1,
+        "type": "attempt.waiting_input",
+        "entityId": "70000000-0000-4000-8000-000000000001",
+        "entityVersion": 1,
+        "attemptId": "60000000-0000-4000-8000-000000000001",
+        "dialogId": "30000000-0000-4000-8000-000000000001",
+        "observedAt": "2026-09-09T00:00:00Z",
+        "completeness": "complete",
+        "payload": {
+          "requestId": "50000000-0000-4000-8000-000000000001",
+          "generation": 1,
+          "waitKind": "approval"
+        }
+      }
+    },
+    {
+      "name": "event.8.attempt.stop_requested",
+      "wireType": "event",
+      "shapeValid": true,
+      "value": {
+        "protocolVersion": 1,
+        "schemaId": "harness-wire-v2",
+        "nodeId": "20000000-0000-4000-8000-000000000001",
+        "seq": 8,
+        "epoch": 1,
+        "type": "attempt.stop_requested",
+        "entityId": "70000000-0000-4000-8000-000000000001",
+        "entityVersion": 1,
+        "attemptId": "60000000-0000-4000-8000-000000000001",
+        "dialogId": "30000000-0000-4000-8000-000000000001",
+        "observedAt": "2026-09-09T00:00:00Z",
+        "completeness": "complete",
+        "payload": {
+          "generation": 1,
+          "commandId": "10000000-0000-4000-8000-000000000001"
+        }
+      }
+    },
+    {
+      "name": "event.9.attempt.completed",
+      "wireType": "event",
+      "shapeValid": true,
+      "value": {
+        "protocolVersion": 1,
+        "schemaId": "harness-wire-v2",
+        "nodeId": "20000000-0000-4000-8000-000000000001",
+        "seq": 9,
+        "epoch": 1,
+        "type": "attempt.completed",
+        "entityId": "70000000-0000-4000-8000-000000000001",
+        "entityVersion": 1,
+        "attemptId": "60000000-0000-4000-8000-000000000001",
+        "dialogId": "30000000-0000-4000-8000-000000000001",
+        "observedAt": "2026-09-09T00:00:00Z",
+        "completeness": "complete",
+        "payload": {
+          "generation": 1,
+          "output": {
+            "kind": "empty"
+          },
+          "usage": {
+            "source": "per_attempt",
+            "inputTokens": 1,
+            "outputTokens": 1,
+            "totalTokens": 2
+          }
+        }
+      }
+    },
+    {
+      "name": "event.10.attempt.failed",
+      "wireType": "event",
+      "shapeValid": true,
+      "value": {
+        "protocolVersion": 1,
+        "schemaId": "harness-wire-v2",
+        "nodeId": "20000000-0000-4000-8000-000000000001",
+        "seq": 10,
+        "epoch": 1,
+        "type": "attempt.failed",
+        "entityId": "70000000-0000-4000-8000-000000000001",
+        "entityVersion": 1,
+        "attemptId": "60000000-0000-4000-8000-000000000001",
+        "dialogId": "30000000-0000-4000-8000-000000000001",
+        "observedAt": "2026-09-09T00:00:00Z",
+        "completeness": "complete",
+        "payload": {
+          "generation": 1,
+          "failureClass": "task",
+          "errorCode": "tool_failed",
+          "safeMessage": "tool failed",
+          "retryable": false,
+          "effectStatus": "none"
+        }
+      }
+    },
+    {
+      "name": "event.11.attempt.interrupted",
+      "wireType": "event",
+      "shapeValid": true,
+      "value": {
+        "protocolVersion": 1,
+        "schemaId": "harness-wire-v2",
+        "nodeId": "20000000-0000-4000-8000-000000000001",
+        "seq": 11,
+        "epoch": 1,
+        "type": "attempt.interrupted",
+        "entityId": "70000000-0000-4000-8000-000000000001",
+        "entityVersion": 1,
+        "attemptId": "60000000-0000-4000-8000-000000000001",
+        "dialogId": "30000000-0000-4000-8000-000000000001",
+        "observedAt": "2026-09-09T00:00:00Z",
+        "completeness": "complete",
+        "payload": {
+          "generation": 1,
+          "reason": "owner_stop",
+          "effectStatus": "none"
+        }
+      }
+    },
+    {
+      "name": "event.12.attempt.unknown",
+      "wireType": "event",
+      "shapeValid": true,
+      "value": {
+        "protocolVersion": 1,
+        "schemaId": "harness-wire-v2",
+        "nodeId": "20000000-0000-4000-8000-000000000001",
+        "seq": 12,
+        "epoch": 1,
+        "type": "attempt.unknown",
+        "entityId": "70000000-0000-4000-8000-000000000001",
+        "entityVersion": 1,
+        "attemptId": "60000000-0000-4000-8000-000000000001",
+        "dialogId": "30000000-0000-4000-8000-000000000001",
+        "observedAt": "2026-09-09T00:00:00Z",
+        "completeness": "complete",
+        "payload": {
+          "generation": 1,
+          "reason": "cancel_unconfirmed",
+          "effectStatus": "unknown"
+        }
+      }
+    },
+    {
+      "name": "event.13.assistant.delta",
+      "wireType": "event",
+      "shapeValid": true,
+      "value": {
+        "protocolVersion": 1,
+        "schemaId": "harness-wire-v2",
+        "nodeId": "20000000-0000-4000-8000-000000000001",
+        "seq": 13,
+        "epoch": 1,
+        "type": "assistant.delta",
+        "entityId": "70000000-0000-4000-8000-000000000001",
+        "entityVersion": 1,
+        "attemptId": "60000000-0000-4000-8000-000000000001",
+        "dialogId": "30000000-0000-4000-8000-000000000001",
+        "observedAt": "2026-09-09T00:00:00Z",
+        "completeness": "complete",
+        "payload": {
+          "messageId": "40000000-0000-4000-8000-000000000001",
+          "deltaIndex": 0,
+          "content": {
+            "kind": "inline",
+            "content": "delta",
+            "redaction": "none",
+            "truncated": false
+          }
+        }
+      }
+    },
+    {
+      "name": "event.14.assistant.message",
+      "wireType": "event",
+      "shapeValid": true,
+      "value": {
+        "protocolVersion": 1,
+        "schemaId": "harness-wire-v2",
+        "nodeId": "20000000-0000-4000-8000-000000000001",
+        "seq": 14,
+        "epoch": 1,
+        "type": "assistant.message",
+        "entityId": "70000000-0000-4000-8000-000000000001",
+        "entityVersion": 1,
+        "attemptId": "60000000-0000-4000-8000-000000000001",
+        "dialogId": "30000000-0000-4000-8000-000000000001",
+        "observedAt": "2026-09-09T00:00:00Z",
+        "completeness": "complete",
+        "payload": {
+          "messageId": "40000000-0000-4000-8000-000000000001",
+          "content": {
+            "kind": "inline",
+            "content": "done",
+            "redaction": "none",
+            "truncated": false
+          },
+          "finishReason": "complete"
+        }
+      }
+    },
+    {
+      "name": "event.15.tool.started",
+      "wireType": "event",
+      "shapeValid": true,
+      "value": {
+        "protocolVersion": 1,
+        "schemaId": "harness-wire-v2",
+        "nodeId": "20000000-0000-4000-8000-000000000001",
+        "seq": 15,
+        "epoch": 1,
+        "type": "tool.started",
+        "entityId": "70000000-0000-4000-8000-000000000001",
+        "entityVersion": 1,
+        "attemptId": "60000000-0000-4000-8000-000000000001",
+        "dialogId": "30000000-0000-4000-8000-000000000001",
+        "observedAt": "2026-09-09T00:00:00Z",
+        "completeness": "complete",
+        "payload": {
+          "callId": "80000000-0000-4000-8000-000000000001",
+          "toolName": "synthetic",
+          "actionHash": "0000000000000000000000000000000000000000000000000000000000000000",
+          "input": {
+            "kind": "inline",
+            "content": "marker",
+            "redaction": "none",
+            "truncated": false
+          }
+        }
+      }
+    },
+    {
+      "name": "event.16.tool.output",
+      "wireType": "event",
+      "shapeValid": true,
+      "value": {
+        "protocolVersion": 1,
+        "schemaId": "harness-wire-v2",
+        "nodeId": "20000000-0000-4000-8000-000000000001",
+        "seq": 16,
+        "epoch": 1,
+        "type": "tool.output",
+        "entityId": "70000000-0000-4000-8000-000000000001",
+        "entityVersion": 1,
+        "attemptId": "60000000-0000-4000-8000-000000000001",
+        "dialogId": "30000000-0000-4000-8000-000000000001",
+        "observedAt": "2026-09-09T00:00:00Z",
+        "completeness": "complete",
+        "payload": {
+          "callId": "80000000-0000-4000-8000-000000000001",
+          "chunkIndex": 0,
+          "stream": "result",
+          "output": {
+            "kind": "inline",
+            "content": "output",
+            "redaction": "none",
+            "truncated": false
+          }
+        }
+      }
+    },
+    {
+      "name": "event.17.tool.completed",
+      "wireType": "event",
+      "shapeValid": true,
+      "value": {
+        "protocolVersion": 1,
+        "schemaId": "harness-wire-v2",
+        "nodeId": "20000000-0000-4000-8000-000000000001",
+        "seq": 17,
+        "epoch": 1,
+        "type": "tool.completed",
+        "entityId": "70000000-0000-4000-8000-000000000001",
+        "entityVersion": 1,
+        "attemptId": "60000000-0000-4000-8000-000000000001",
+        "dialogId": "30000000-0000-4000-8000-000000000001",
+        "observedAt": "2026-09-09T00:00:00Z",
+        "completeness": "complete",
+        "payload": {
+          "callId": "80000000-0000-4000-8000-000000000001",
+          "status": "succeeded",
+          "result": {
+            "kind": "inline",
+            "content": "ok",
+            "redaction": "applied",
+            "truncated": false
+          },
+          "effectStatus": "none"
+        }
+      }
+    },
+    {
+      "name": "event.18.approval.requested",
+      "wireType": "event",
+      "shapeValid": true,
+      "value": {
+        "protocolVersion": 1,
+        "schemaId": "harness-wire-v2",
+        "nodeId": "20000000-0000-4000-8000-000000000001",
+        "seq": 18,
+        "epoch": 1,
+        "type": "approval.requested",
+        "entityId": "70000000-0000-4000-8000-000000000001",
+        "entityVersion": 1,
+        "attemptId": "60000000-0000-4000-8000-000000000001",
+        "dialogId": "30000000-0000-4000-8000-000000000001",
+        "observedAt": "2026-09-09T00:00:00Z",
+        "completeness": "complete",
+        "payload": {
+          "approvalId": "90000000-0000-4000-8000-000000000001",
+          "callId": "80000000-0000-4000-8000-000000000001",
+          "actionHash": "0000000000000000000000000000000000000000000000000000000000000000",
+          "safePrompt": "allow?",
+          "approvalVersion": 1
+        }
+      }
+    },
+    {
+      "name": "event.19.approval.resolved",
+      "wireType": "event",
+      "shapeValid": true,
+      "value": {
+        "protocolVersion": 1,
+        "schemaId": "harness-wire-v2",
+        "nodeId": "20000000-0000-4000-8000-000000000001",
+        "seq": 19,
+        "epoch": 1,
+        "type": "approval.resolved",
+        "entityId": "70000000-0000-4000-8000-000000000001",
+        "entityVersion": 1,
+        "attemptId": "60000000-0000-4000-8000-000000000001",
+        "dialogId": "30000000-0000-4000-8000-000000000001",
+        "observedAt": "2026-09-09T00:00:00Z",
+        "completeness": "complete",
+        "payload": {
+          "approvalId": "90000000-0000-4000-8000-000000000001",
+          "decision": "allow_once",
+          "actorId": "1-1",
+          "approvalVersion": 2
+        }
+      }
+    },
+    {
+      "name": "event.20.input.requested",
+      "wireType": "event",
+      "shapeValid": true,
+      "value": {
+        "protocolVersion": 1,
+        "schemaId": "harness-wire-v2",
+        "nodeId": "20000000-0000-4000-8000-000000000001",
+        "seq": 20,
+        "epoch": 1,
+        "type": "input.requested",
+        "entityId": "70000000-0000-4000-8000-000000000001",
+        "entityVersion": 1,
+        "attemptId": "60000000-0000-4000-8000-000000000001",
+        "dialogId": "30000000-0000-4000-8000-000000000001",
+        "observedAt": "2026-09-09T00:00:00Z",
+        "completeness": "complete",
+        "payload": {
+          "inputRequestId": "a0000000-0000-4000-8000-000000000001",
+          "prompt": {
+            "kind": "inline",
+            "content": "value?",
+            "redaction": "none",
+            "truncated": false
+          },
+          "inputVersion": 1
+        }
+      }
+    },
+    {
+      "name": "event.21.input.resolved",
+      "wireType": "event",
+      "shapeValid": true,
+      "value": {
+        "protocolVersion": 1,
+        "schemaId": "harness-wire-v2",
+        "nodeId": "20000000-0000-4000-8000-000000000001",
+        "seq": 21,
+        "epoch": 1,
+        "type": "input.resolved",
+        "entityId": "70000000-0000-4000-8000-000000000001",
+        "entityVersion": 1,
+        "attemptId": "60000000-0000-4000-8000-000000000001",
+        "dialogId": "30000000-0000-4000-8000-000000000001",
+        "observedAt": "2026-09-09T00:00:00Z",
+        "completeness": "complete",
+        "payload": {
+          "inputRequestId": "a0000000-0000-4000-8000-000000000001",
+          "messageId": "40000000-0000-4000-8000-000000000001",
+          "inputVersion": 2
+        }
+      }
+    },
+    {
+      "name": "event.22.artifact.available",
+      "wireType": "event",
+      "shapeValid": true,
+      "value": {
+        "protocolVersion": 1,
+        "schemaId": "harness-wire-v2",
+        "nodeId": "20000000-0000-4000-8000-000000000001",
+        "seq": 22,
+        "epoch": 1,
+        "type": "artifact.available",
+        "entityId": "70000000-0000-4000-8000-000000000001",
+        "entityVersion": 1,
+        "attemptId": "60000000-0000-4000-8000-000000000001",
+        "dialogId": "30000000-0000-4000-8000-000000000001",
+        "observedAt": "2026-09-09T00:00:00Z",
+        "completeness": "complete",
+        "payload": {
+          "artifactId": "b0000000-0000-4000-8000-000000000001",
+          "callId": "80000000-0000-4000-8000-000000000001",
+          "name": "result.txt",
+          "mediaType": "text/plain",
+          "sizeBytes": 2,
+          "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+          "redaction": "applied",
+          "truncated": false
+        }
+      }
+    },
+    {
+      "name": "event.23.history.gap",
+      "wireType": "event",
+      "shapeValid": true,
+      "value": {
+        "protocolVersion": 1,
+        "schemaId": "harness-wire-v2",
+        "nodeId": "20000000-0000-4000-8000-000000000001",
+        "seq": 23,
+        "epoch": 1,
+        "type": "history.gap",
+        "entityId": "70000000-0000-4000-8000-000000000001",
+        "entityVersion": 1,
+        "observedAt": "2026-09-09T00:00:00Z",
+        "completeness": "complete",
+        "payload": {
+          "expectedSeq": 4,
+          "availableFromSeq": 8,
+          "reason": "storage_corruption"
+        }
+      }
+    },
+    {
+      "name": "event.24.dialog.deleted",
+      "wireType": "event",
+      "shapeValid": true,
+      "value": {
+        "protocolVersion": 1,
+        "schemaId": "harness-wire-v2",
+        "nodeId": "20000000-0000-4000-8000-000000000001",
+        "seq": 24,
+        "epoch": 1,
+        "type": "dialog.deleted",
+        "entityId": "30000000-0000-4000-8000-000000000001",
+        "entityVersion": 1,
+        "dialogId": "30000000-0000-4000-8000-000000000001",
+        "observedAt": "2026-09-09T00:00:00Z",
+        "completeness": "complete",
+        "payload": {
+          "dialogId": "30000000-0000-4000-8000-000000000001"
+        }
+      }
+    },
+    {
+      "name": "receipt.1.dialog.create",
+      "wireType": "receipt",
+      "shapeValid": true,
+      "value": {
+        "protocolVersion": 1,
+        "schemaId": "harness-wire-v2",
+        "commandId": "10000000-0000-4000-8000-000000000001",
+        "commandKind": "dialog.create",
+        "receiptId": "10000000-0000-4000-8000-000000000002",
+        "acceptedAt": "2026-09-09T00:00:00Z",
+        "nodeId": "20000000-0000-4000-8000-000000000001",
+        "eventSeq": 1,
+        "result": "admitted",
+        "references": {
+          "dialogId": "30000000-0000-4000-8000-000000000001"
+        }
+      }
+    },
+    {
+      "name": "receipt.2.message.enqueue",
+      "wireType": "receipt",
+      "shapeValid": true,
+      "value": {
+        "protocolVersion": 1,
+        "schemaId": "harness-wire-v2",
+        "commandId": "10000000-0000-4000-8000-000000000001",
+        "commandKind": "message.enqueue",
+        "receiptId": "10000000-0000-4000-8000-000000000002",
+        "acceptedAt": "2026-09-09T00:00:00Z",
+        "nodeId": "20000000-0000-4000-8000-000000000001",
+        "eventSeq": 2,
+        "result": "admitted",
+        "references": {
+          "dialogId": "30000000-0000-4000-8000-000000000001",
+          "messageId": "40000000-0000-4000-8000-000000000001",
+          "requestId": "50000000-0000-4000-8000-000000000001"
+        }
+      }
+    },
+    {
+      "name": "receipt.3.message.steer",
+      "wireType": "receipt",
+      "shapeValid": true,
+      "value": {
+        "protocolVersion": 1,
+        "schemaId": "harness-wire-v2",
+        "commandId": "10000000-0000-4000-8000-000000000001",
+        "commandKind": "message.steer",
+        "receiptId": "10000000-0000-4000-8000-000000000002",
+        "acceptedAt": "2026-09-09T00:00:00Z",
+        "nodeId": "20000000-0000-4000-8000-000000000001",
+        "eventSeq": 3,
+        "result": "admitted",
+        "references": {
+          "dialogId": "30000000-0000-4000-8000-000000000001",
+          "messageId": "40000000-0000-4000-8000-000000000001",
+          "attemptId": "60000000-0000-4000-8000-000000000001"
+        }
+      }
+    },
+    {
+      "name": "receipt.4.request.cancel",
+      "wireType": "receipt",
+      "shapeValid": true,
+      "value": {
+        "protocolVersion": 1,
+        "schemaId": "harness-wire-v2",
+        "commandId": "10000000-0000-4000-8000-000000000001",
+        "commandKind": "request.cancel",
+        "receiptId": "10000000-0000-4000-8000-000000000002",
+        "acceptedAt": "2026-09-09T00:00:00Z",
+        "nodeId": "20000000-0000-4000-8000-000000000001",
+        "eventSeq": 4,
+        "result": "admitted",
+        "references": {
+          "requestId": "50000000-0000-4000-8000-000000000001"
+        }
+      }
+    },
+    {
+      "name": "receipt.5.attempt.stop",
+      "wireType": "receipt",
+      "shapeValid": true,
+      "value": {
+        "protocolVersion": 1,
+        "schemaId": "harness-wire-v2",
+        "commandId": "10000000-0000-4000-8000-000000000001",
+        "commandKind": "attempt.stop",
+        "receiptId": "10000000-0000-4000-8000-000000000002",
+        "acceptedAt": "2026-09-09T00:00:00Z",
+        "nodeId": "20000000-0000-4000-8000-000000000001",
+        "eventSeq": 5,
+        "result": "admitted",
+        "references": {
+          "attemptId": "60000000-0000-4000-8000-000000000001"
+        }
+      }
+    },
+    {
+      "name": "receipt.6.queue.resume",
+      "wireType": "receipt",
+      "shapeValid": true,
+      "value": {
+        "protocolVersion": 1,
+        "schemaId": "harness-wire-v2",
+        "commandId": "10000000-0000-4000-8000-000000000001",
+        "commandKind": "queue.resume",
+        "receiptId": "10000000-0000-4000-8000-000000000002",
+        "acceptedAt": "2026-09-09T00:00:00Z",
+        "nodeId": "20000000-0000-4000-8000-000000000001",
+        "eventSeq": 6,
+        "result": "applied",
+        "references": {
+          "nodeId": "20000000-0000-4000-8000-000000000001"
+        }
+      }
+    },
+    {
+      "name": "receipt.7.attempt.retry",
+      "wireType": "receipt",
+      "shapeValid": true,
+      "value": {
+        "protocolVersion": 1,
+        "schemaId": "harness-wire-v2",
+        "commandId": "10000000-0000-4000-8000-000000000001",
+        "commandKind": "attempt.retry",
+        "receiptId": "10000000-0000-4000-8000-000000000002",
+        "acceptedAt": "2026-09-09T00:00:00Z",
+        "nodeId": "20000000-0000-4000-8000-000000000001",
+        "eventSeq": 7,
+        "result": "admitted",
+        "references": {
+          "priorAttemptId": "60000000-0000-4000-8000-000000000002",
+          "requestId": "50000000-0000-4000-8000-000000000001"
+        }
+      }
+    },
+    {
+      "name": "receipt.8.approval.respond",
+      "wireType": "receipt",
+      "shapeValid": true,
+      "value": {
+        "protocolVersion": 1,
+        "schemaId": "harness-wire-v2",
+        "commandId": "10000000-0000-4000-8000-000000000001",
+        "commandKind": "approval.respond",
+        "receiptId": "10000000-0000-4000-8000-000000000002",
+        "acceptedAt": "2026-09-09T00:00:00Z",
+        "nodeId": "20000000-0000-4000-8000-000000000001",
+        "eventSeq": 8,
+        "result": "admitted",
+        "references": {
+          "approvalId": "90000000-0000-4000-8000-000000000001",
+          "attemptId": "60000000-0000-4000-8000-000000000001"
+        }
+      }
+    },
+    {
+      "name": "receipt.9.input.respond",
+      "wireType": "receipt",
+      "shapeValid": true,
+      "value": {
+        "protocolVersion": 1,
+        "schemaId": "harness-wire-v2",
+        "commandId": "10000000-0000-4000-8000-000000000001",
+        "commandKind": "input.respond",
+        "receiptId": "10000000-0000-4000-8000-000000000002",
+        "acceptedAt": "2026-09-09T00:00:00Z",
+        "nodeId": "20000000-0000-4000-8000-000000000001",
+        "eventSeq": 9,
+        "result": "admitted",
+        "references": {
+          "inputRequestId": "a0000000-0000-4000-8000-000000000001",
+          "attemptId": "60000000-0000-4000-8000-000000000001",
+          "messageId": "40000000-0000-4000-8000-000000000001"
+        }
+      }
+    },
+    {
+      "name": "receipt.10.dialog.delete",
+      "wireType": "receipt",
+      "shapeValid": true,
+      "value": {
+        "protocolVersion": 1,
+        "schemaId": "harness-wire-v2",
+        "commandId": "10000000-0000-4000-8000-000000000001",
+        "commandKind": "dialog.delete",
+        "receiptId": "10000000-0000-4000-8000-000000000002",
+        "acceptedAt": "2026-09-09T00:00:00Z",
+        "nodeId": "20000000-0000-4000-8000-000000000001",
+        "eventSeq": 10,
+        "result": "deleted",
+        "references": {
+          "dialogId": "30000000-0000-4000-8000-000000000001"
+        }
+      }
+    },
+    {
+      "name": "snapshot.atomic",
+      "wireType": "snapshot",
+      "shapeValid": true,
+      "value": {
+        "protocolVersion": 1,
+        "schemaId": "harness-wire-v2",
+        "nodeId": "20000000-0000-4000-8000-000000000001",
+        "epoch": 1,
+        "stateVersion": 4,
+        "lastEventSeq": 23,
+        "capturedAt": "2026-09-09T00:00:00Z",
+        "node": {
+          "transportAvailability": "online",
+          "engineReadiness": "ready",
+          "occupancy": "idle",
+          "queuePaused": false,
+          "queueVersion": 1,
+          "pendingCount": 1,
+          "blockedReasons": [],
+          "activeAttemptId": null
+        },
+        "pendingQueue": [
+          {
+            "requestId": "50000000-0000-4000-8000-000000000001",
+            "dialogId": "30000000-0000-4000-8000-000000000001",
+            "inputMessageId": "40000000-0000-4000-8000-000000000001",
+            "queueSequence": 1,
+            "version": 1,
+            "status": "queued"
+          }
+        ],
+        "activeAttempt": null,
+        "completeness": "complete"
+      }
+    },
+    {
+      "name": "page.dialogs",
+      "wireType": "dialogPage",
+      "shapeValid": true,
+      "value": {
+        "protocolVersion": 1,
+        "schemaId": "harness-wire-v2",
+        "nodeId": "20000000-0000-4000-8000-000000000001",
+        "epoch": 1,
+        "snapshotStateVersion": 4,
+        "lastEventSeq": 23,
+        "nextCursor": null,
+        "pageType": "dialogs",
+        "items": [
+          {
+            "dialogId": "30000000-0000-4000-8000-000000000001",
+            "version": 1,
+            "title": "test",
+            "createdAt": "2026-09-09T00:00:00Z"
+          }
+        ]
+      }
+    },
+    {
+      "name": "page.history.user",
+      "wireType": "historyPage",
+      "shapeValid": true,
+      "value": {
+        "protocolVersion": 1,
+        "schemaId": "harness-wire-v2",
+        "nodeId": "20000000-0000-4000-8000-000000000001",
+        "epoch": 1,
+        "snapshotStateVersion": 4,
+        "lastEventSeq": 23,
+        "nextCursor": null,
+        "pageType": "history",
+        "dialogId": "30000000-0000-4000-8000-000000000001",
+        "items": [
+          {
+            "messageId": "40000000-0000-4000-8000-000000000001",
+            "role": "user",
+            "dialogId": "30000000-0000-4000-8000-000000000001",
+            "sequence": 1,
+            "version": 1,
+            "createdAt": "2026-09-09T00:00:00Z",
+            "text": "test",
+            "disposition": "queued",
+            "commandId": "10000000-0000-4000-8000-000000000001",
+            "requestId": "50000000-0000-4000-8000-000000000001"
+          }
+        ]
+      }
+    },
+    {
+      "name": "page.history.assistant",
+      "wireType": "historyPage",
+      "shapeValid": true,
+      "value": {
+        "protocolVersion": 1,
+        "schemaId": "harness-wire-v2",
+        "nodeId": "20000000-0000-4000-8000-000000000001",
+        "epoch": 1,
+        "snapshotStateVersion": 4,
+        "lastEventSeq": 23,
+        "nextCursor": null,
+        "pageType": "history",
+        "dialogId": "30000000-0000-4000-8000-000000000001",
+        "items": [
+          {
+            "messageId": "40000000-0000-4000-8000-000000000002",
+            "role": "assistant",
+            "dialogId": "30000000-0000-4000-8000-000000000001",
+            "sequence": 2,
+            "version": 1,
+            "createdAt": "2026-09-09T00:00:00Z",
+            "attemptId": "60000000-0000-4000-8000-000000000001",
+            "content": {
+              "kind": "inline",
+              "content": "done",
+              "redaction": "none",
+              "truncated": false
+            },
+            "finishReason": "complete"
+          }
+        ]
+      }
+    },
+    {
+      "name": "page.requests",
+      "wireType": "requestPage",
+      "shapeValid": true,
+      "value": {
+        "protocolVersion": 1,
+        "schemaId": "harness-wire-v2",
+        "nodeId": "20000000-0000-4000-8000-000000000001",
+        "epoch": 1,
+        "snapshotStateVersion": 4,
+        "lastEventSeq": 23,
+        "nextCursor": null,
+        "pageType": "requests",
+        "items": [
+          {
+            "requestId": "50000000-0000-4000-8000-000000000001",
+            "dialogId": "30000000-0000-4000-8000-000000000001",
+            "inputMessageId": "40000000-0000-4000-8000-000000000001",
+            "queueSequence": 1,
+            "version": 1,
+            "status": "queued"
+          }
+        ]
+      }
+    },
+    {
+      "name": "page.attempts",
+      "wireType": "attemptPage",
+      "shapeValid": true,
+      "value": {
+        "protocolVersion": 1,
+        "schemaId": "harness-wire-v2",
+        "nodeId": "20000000-0000-4000-8000-000000000001",
+        "epoch": 1,
+        "snapshotStateVersion": 4,
+        "lastEventSeq": 23,
+        "nextCursor": null,
+        "pageType": "attempts",
+        "dialogId": "30000000-0000-4000-8000-000000000001",
+        "requestId": "50000000-0000-4000-8000-000000000001",
+        "items": [
+          {
+            "attemptId": "60000000-0000-4000-8000-000000000001",
+            "dialogId": "30000000-0000-4000-8000-000000000001",
+            "requestId": "50000000-0000-4000-8000-000000000001",
+            "generation": 1,
+            "version": 1,
+            "state": "running",
+            "effectStatus": "none",
+            "startedAt": "2026-09-09T00:00:00Z"
+          }
+        ]
+      }
+    },
+    {
+      "name": "page.events",
+      "wireType": "eventPage",
+      "shapeValid": true,
+      "value": {
+        "protocolVersion": 1,
+        "schemaId": "harness-wire-v2",
+        "nodeId": "20000000-0000-4000-8000-000000000001",
+        "epoch": 1,
+        "snapshotStateVersion": 4,
+        "lastEventSeq": 23,
+        "nextCursor": null,
+        "pageType": "events",
+        "dialogId": "30000000-0000-4000-8000-000000000001",
+        "attemptId": "60000000-0000-4000-8000-000000000001",
+        "items": [
+          {
+            "protocolVersion": 1,
+            "schemaId": "harness-wire-v2",
+            "nodeId": "20000000-0000-4000-8000-000000000001",
+            "seq": 6,
+            "epoch": 1,
+            "type": "attempt.started",
+            "entityId": "70000000-0000-4000-8000-000000000001",
+            "entityVersion": 1,
+            "attemptId": "60000000-0000-4000-8000-000000000001",
+            "dialogId": "30000000-0000-4000-8000-000000000001",
+            "observedAt": "2026-09-09T00:00:00Z",
+            "completeness": "complete",
+            "payload": {
+              "requestId": "50000000-0000-4000-8000-000000000001",
+              "generation": 1
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "error.stale",
+      "wireType": "error",
+      "shapeValid": true,
+      "value": {
+        "protocolVersion": 1,
+        "schemaId": "harness-wire-v2",
+        "code": "stale",
+        "safeMessage": "version changed",
+        "retryable": false,
+        "correlationId": "10000000-0000-4000-8000-000000000001",
+        "currentVersion": 2,
+        "currentState": "active"
+      }
+    },
+    {
+      "name": "read.attempt",
+      "wireType": "attemptRead",
+      "shapeValid": true,
+      "value": {
+        "protocolVersion": 1,
+        "schemaId": "harness-wire-v2",
+        "nodeId": "20000000-0000-4000-8000-000000000001",
+        "epoch": 1,
+        "stateVersion": 4,
+        "attempt": {
+          "attemptId": "60000000-0000-4000-8000-000000000001",
+          "dialogId": "30000000-0000-4000-8000-000000000001",
+          "requestId": "50000000-0000-4000-8000-000000000001",
+          "generation": 1,
+          "version": 1,
+          "state": "running",
+          "effectStatus": "none",
+          "startedAt": "2026-09-09T00:00:00Z"
+        }
+      }
+    },
+    {
+      "name": "read.command",
+      "wireType": "commandStatus",
+      "shapeValid": true,
+      "value": {
+        "protocolVersion": 1,
+        "schemaId": "harness-wire-v2",
+        "nodeId": "20000000-0000-4000-8000-000000000001",
+        "commandId": "10000000-0000-4000-8000-000000000001",
+        "canonicalPayloadHash": "0000000000000000000000000000000000000000000000000000000000000000",
+        "status": "accepted",
+        "receipt": {
+          "protocolVersion": 1,
+          "schemaId": "harness-wire-v2",
+          "commandId": "10000000-0000-4000-8000-000000000001",
+          "commandKind": "message.enqueue",
+          "receiptId": "10000000-0000-4000-8000-000000000002",
+          "acceptedAt": "2026-09-09T00:00:00Z",
+          "nodeId": "20000000-0000-4000-8000-000000000001",
+          "eventSeq": 2,
+          "result": "admitted",
+          "references": {
+            "dialogId": "30000000-0000-4000-8000-000000000001",
+            "messageId": "40000000-0000-4000-8000-000000000001",
+            "requestId": "50000000-0000-4000-8000-000000000001"
+          }
+        }
+      }
+    },
+    {
+      "name": "read.identity",
+      "wireType": "nodeIdentity",
+      "shapeValid": true,
+      "value": {
+        "protocolVersion": 1,
+        "schemaId": "harness-wire-v2",
+        "schemaSHA256": "5bd97f2ea08854a8e56d46ff11a1539e6bc54e8ca6d42841b366561accba73d9",
+        "nodeId": "20000000-0000-4000-8000-000000000001",
+        "registryVersion": 1,
+        "identityEpoch": 1,
+        "adapter": {
+          "kind": "cursor",
+          "version": "1.0.31"
+        },
+        "capabilities": {
+          "chat": "verified",
+          "events": "verified",
+          "tool_results": "verified",
+          "cancel": "verified",
+          "steer_attached": "verified",
+          "session_resume": "verified",
+          "policy_enforcement": "verified"
+        }
+      }
+    },
+    {
+      "name": "health.live",
+      "wireType": "healthLive",
+      "shapeValid": true,
+      "value": {
+        "protocolVersion": 1,
+        "schemaId": "harness-wire-v2",
+        "status": "live",
+        "processStartedAt": "2026-09-09T00:00:00Z"
+      }
+    },
+    {
+      "name": "timestamp.year_zero_leap",
+      "wireType": "healthLive",
+      "shapeValid": true,
+      "value": {
+        "protocolVersion": 1,
+        "schemaId": "harness-wire-v2",
+        "status": "live",
+        "processStartedAt": "0000-02-29T00:00:00Z"
+      }
+    },
+    {
+      "name": "health.ready",
+      "wireType": "healthReady",
+      "shapeValid": true,
+      "value": {
+        "protocolVersion": 1,
+        "schemaId": "harness-wire-v2",
+        "checkedAt": "2026-09-09T00:00:00Z",
+        "identity": {
+          "protocolVersion": 1,
+          "schemaId": "harness-wire-v2",
+          "schemaSHA256": "5bd97f2ea08854a8e56d46ff11a1539e6bc54e8ca6d42841b366561accba73d9",
+          "nodeId": "20000000-0000-4000-8000-000000000001",
+          "registryVersion": 1,
+          "identityEpoch": 1,
+          "adapter": {
+            "kind": "codex",
+            "version": "0.153.4"
+          },
+          "capabilities": {
+            "chat": "verified",
+            "events": "verified",
+            "tool_results": "verified",
+            "cancel": "verified",
+            "steer_attached": "verified",
+            "session_resume": "verified",
+            "policy_enforcement": "verified"
+          }
+        },
+        "readiness": "ready",
+        "blockedReasons": []
+      }
+    },
+    {
+      "name": "event.tool_input_unavailable",
+      "wireType": "event",
+      "shapeValid": true,
+      "value": {
+        "protocolVersion": 1,
+        "schemaId": "harness-wire-v2",
+        "nodeId": "20000000-0000-4000-8000-000000000001",
+        "seq": 15,
+        "epoch": 1,
+        "type": "tool.started",
+        "entityId": "70000000-0000-4000-8000-000000000001",
+        "entityVersion": 1,
+        "attemptId": "60000000-0000-4000-8000-000000000001",
+        "dialogId": "30000000-0000-4000-8000-000000000001",
+        "observedAt": "2026-09-09T00:00:00Z",
+        "completeness": "complete",
+        "payload": {
+          "callId": "80000000-0000-4000-8000-000000000001",
+          "toolName": "synthetic",
+          "actionHash": "0000000000000000000000000000000000000000000000000000000000000000",
+          "input": {
+            "kind": "unavailable",
+            "reason": "not_observed",
+            "redaction": "unknown",
+            "truncated": false
+          }
+        }
+      }
+    },
+    {
+      "name": "history.assistant_artifact",
+      "wireType": "historyPage",
+      "shapeValid": true,
+      "value": {
+        "protocolVersion": 1,
+        "schemaId": "harness-wire-v2",
+        "nodeId": "20000000-0000-4000-8000-000000000001",
+        "epoch": 1,
+        "snapshotStateVersion": 4,
+        "lastEventSeq": 23,
+        "nextCursor": null,
+        "pageType": "history",
+        "dialogId": "30000000-0000-4000-8000-000000000001",
+        "items": [
+          {
+            "messageId": "40000000-0000-4000-8000-000000000003",
+            "role": "assistant",
+            "dialogId": "30000000-0000-4000-8000-000000000001",
+            "sequence": 3,
+            "version": 1,
+            "createdAt": "2026-09-09T00:00:00Z",
+            "attemptId": "60000000-0000-4000-8000-000000000001",
+            "content": {
+              "kind": "artifact",
+              "artifactId": "b0000000-0000-4000-8000-000000000001",
+              "sizeBytes": 1024,
+              "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+              "redaction": "applied",
+              "truncated": false
+            },
+            "finishReason": "complete"
+          }
+        ]
+      }
+    },
+    {
+      "name": "read.artifact",
+      "wireType": "artifactMetadata",
+      "shapeValid": true,
+      "value": {
+        "protocolVersion": 1,
+        "schemaId": "harness-wire-v2",
+        "nodeId": "20000000-0000-4000-8000-000000000001",
+        "dialogId": "30000000-0000-4000-8000-000000000001",
+        "attemptId": "60000000-0000-4000-8000-000000000001",
+        "artifactId": "b0000000-0000-4000-8000-000000000001",
+        "callId": "80000000-0000-4000-8000-000000000001",
+        "name": "result.txt",
+        "mediaType": "text/plain",
+        "sizeBytes": 1024,
+        "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+        "redaction": "applied",
+        "truncated": false,
+        "disposition": "attachment"
+      }
+    },
+    {
+      "name": "utf8.title_exact_200_bytes",
+      "wireType": "command",
+      "shapeValid": true,
+      "value": {
+        "protocolVersion": 1,
+        "schemaId": "harness-wire-v2",
+        "commandId": "10000000-0000-4000-8000-000000000001",
+        "kind": "dialog.create",
+        "target": {
+          "nodeId": "20000000-0000-4000-8000-000000000001"
+        },
+        "expected": {
+          "registryVersion": 1
+        },
+        "payload": {
+          "title": "яяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяя"
+        }
+      }
+    },
+    {
+      "name": "invalid.browser_actor",
+      "wireType": "command",
+      "shapeValid": false,
+      "errorCode": "invalid",
+      "value": {
+        "protocolVersion": 1,
+        "schemaId": "harness-wire-v2",
+        "commandId": "10000000-0000-4000-8000-000000000001",
+        "kind": "message.enqueue",
+        "target": {
+          "nodeId": "20000000-0000-4000-8000-000000000001",
+          "dialogId": "30000000-0000-4000-8000-000000000001"
+        },
+        "expected": {
+          "dialogVersion": 1
+        },
+        "payload": {
+          "text": "test"
+        },
+        "actorId": "1-1"
+      }
+    },
+    {
+      "name": "invalid.unknown_payload",
+      "wireType": "command",
+      "shapeValid": false,
+      "errorCode": "invalid",
+      "value": {
+        "protocolVersion": 1,
+        "schemaId": "harness-wire-v2",
+        "commandId": "10000000-0000-4000-8000-000000000001",
+        "kind": "message.enqueue",
+        "target": {
+          "nodeId": "20000000-0000-4000-8000-000000000001",
+          "dialogId": "30000000-0000-4000-8000-000000000001"
+        },
+        "expected": {
+          "dialogVersion": 1
+        },
+        "payload": {
+          "text": "test",
+          "extra": true
+        }
+      }
+    },
+    {
+      "name": "invalid.protocol_pin",
+      "wireType": "command",
+      "shapeValid": false,
+      "errorCode": "protocol_mismatch",
+      "value": {
+        "protocolVersion": 2,
+        "schemaId": "harness-wire-v2",
+        "commandId": "10000000-0000-4000-8000-000000000001",
+        "kind": "message.enqueue",
+        "target": {
+          "nodeId": "20000000-0000-4000-8000-000000000001",
+          "dialogId": "30000000-0000-4000-8000-000000000001"
+        },
+        "expected": {
+          "dialogVersion": 1
+        },
+        "payload": {
+          "text": "test"
+        }
+      }
+    },
+    {
+      "name": "invalid.schema_pin",
+      "wireType": "command",
+      "shapeValid": false,
+      "errorCode": "schema_mismatch",
+      "value": {
+        "protocolVersion": 1,
+        "schemaId": "harness-wire-v1",
+        "commandId": "10000000-0000-4000-8000-000000000001",
+        "kind": "message.enqueue",
+        "target": {
+          "nodeId": "20000000-0000-4000-8000-000000000001",
+          "dialogId": "30000000-0000-4000-8000-000000000001"
+        },
+        "expected": {
+          "dialogVersion": 1
+        },
+        "payload": {
+          "text": "test"
+        }
+      }
+    },
+    {
+      "name": "invalid.unsafe_integer",
+      "wireType": "command",
+      "shapeValid": false,
+      "errorCode": "invalid",
+      "value": {
+        "protocolVersion": 1,
+        "schemaId": "harness-wire-v2",
+        "commandId": "10000000-0000-4000-8000-000000000001",
+        "kind": "message.enqueue",
+        "target": {
+          "nodeId": "20000000-0000-4000-8000-000000000001",
+          "dialogId": "30000000-0000-4000-8000-000000000001"
+        },
+        "expected": {
+          "dialogVersion": 9007199254740992
+        },
+        "payload": {
+          "text": "test"
+        }
+      }
+    },
+    {
+      "name": "invalid.utf8_bytes",
+      "wireType": "command",
+      "shapeValid": false,
+      "errorCode": "too_large",
+      "value": {
+        "protocolVersion": 1,
+        "schemaId": "harness-wire-v2",
+        "commandId": "10000000-0000-4000-8000-000000000001",
+        "kind": "message.enqueue",
+        "target": {
+          "nodeId": "20000000-0000-4000-8000-000000000001",
+          "dialogId": "30000000-0000-4000-8000-000000000001"
+        },
+        "expected": {
+          "dialogVersion": 1
+        },
+        "payload": {
+          "text": "яяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяя"
+        }
+      }
+    },
+    {
+      "name": "invalid.unknown_event",
+      "wireType": "event",
+      "shapeValid": false,
+      "errorCode": "invalid",
+      "value": {
+        "protocolVersion": 1,
+        "schemaId": "harness-wire-v2",
+        "nodeId": "20000000-0000-4000-8000-000000000001",
+        "seq": 1,
+        "epoch": 1,
+        "type": "vendor.raw",
+        "entityId": "70000000-0000-4000-8000-000000000001",
+        "entityVersion": 1,
+        "observedAt": "2026-09-09T00:00:00Z",
+        "completeness": "complete",
+        "payload": {
+          "transportAvailability": "online",
+          "engineReadiness": "ready",
+          "occupancy": "idle",
+          "queuePaused": false,
+          "queueVersion": 1,
+          "pendingCount": 0,
+          "blockedReasons": [],
+          "activeAttemptId": null
+        }
+      }
+    },
+    {
+      "name": "invalid.vendor_ref",
+      "wireType": "event",
+      "shapeValid": false,
+      "errorCode": "invalid",
+      "value": {
+        "protocolVersion": 1,
+        "schemaId": "harness-wire-v2",
+        "nodeId": "20000000-0000-4000-8000-000000000001",
+        "seq": 6,
+        "epoch": 1,
+        "type": "attempt.started",
+        "entityId": "70000000-0000-4000-8000-000000000001",
+        "entityVersion": 1,
+        "attemptId": "60000000-0000-4000-8000-000000000001",
+        "dialogId": "30000000-0000-4000-8000-000000000001",
+        "observedAt": "2026-09-09T00:00:00Z",
+        "completeness": "complete",
+        "payload": {
+          "requestId": "50000000-0000-4000-8000-000000000001",
+          "generation": 1,
+          "vendorTurnId": "private"
+        }
+      }
+    },
+    {
+      "name": "invalid.missing_generation",
+      "wireType": "command",
+      "shapeValid": false,
+      "errorCode": "invalid",
+      "value": {
+        "protocolVersion": 1,
+        "schemaId": "harness-wire-v2",
+        "commandId": "10000000-0000-4000-8000-000000000001",
+        "kind": "attempt.stop",
+        "target": {
+          "nodeId": "20000000-0000-4000-8000-000000000001",
+          "attemptId": "60000000-0000-4000-8000-000000000001"
+        },
+        "expected": {},
+        "payload": {}
+      }
+    },
+    {
+      "name": "invalid.utf8_title_bytes",
+      "wireType": "command",
+      "shapeValid": false,
+      "errorCode": "too_large",
+      "value": {
+        "protocolVersion": 1,
+        "schemaId": "harness-wire-v2",
+        "commandId": "10000000-0000-4000-8000-000000000001",
+        "kind": "dialog.create",
+        "target": {
+          "nodeId": "20000000-0000-4000-8000-000000000001"
+        },
+        "expected": {
+          "registryVersion": 1
+        },
+        "payload": {
+          "title": "яяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяя"
+        }
+      }
+    },
+    {
+      "name": "invalid.history_scope_mismatch",
+      "wireType": "historyPage",
+      "shapeValid": false,
+      "errorCode": "invalid",
+      "value": {
+        "protocolVersion": 1,
+        "schemaId": "harness-wire-v2",
+        "nodeId": "20000000-0000-4000-8000-000000000001",
+        "epoch": 1,
+        "snapshotStateVersion": 4,
+        "lastEventSeq": 23,
+        "nextCursor": null,
+        "pageType": "history",
+        "dialogId": "30000000-0000-4000-8000-000000000001",
+        "items": [
+          {
+            "messageId": "40000000-0000-4000-8000-000000000001",
+            "role": "user",
+            "dialogId": "30000000-0000-4000-8000-000000000002",
+            "sequence": 1,
+            "version": 1,
+            "createdAt": "2026-09-09T00:00:00Z",
+            "text": "test",
+            "disposition": "queued",
+            "commandId": "10000000-0000-4000-8000-000000000001",
+            "requestId": "50000000-0000-4000-8000-000000000001"
+          }
+        ]
+      },
+      "schemaValid": true
+    },
+    {
+      "name": "invalid.attempt_scope_mismatch",
+      "wireType": "attemptPage",
+      "shapeValid": false,
+      "errorCode": "invalid",
+      "value": {
+        "protocolVersion": 1,
+        "schemaId": "harness-wire-v2",
+        "nodeId": "20000000-0000-4000-8000-000000000001",
+        "epoch": 1,
+        "snapshotStateVersion": 4,
+        "lastEventSeq": 23,
+        "nextCursor": null,
+        "pageType": "attempts",
+        "dialogId": "30000000-0000-4000-8000-000000000001",
+        "requestId": "50000000-0000-4000-8000-000000000001",
+        "items": [
+          {
+            "attemptId": "60000000-0000-4000-8000-000000000001",
+            "dialogId": "30000000-0000-4000-8000-000000000001",
+            "requestId": "50000000-0000-4000-8000-000000000002",
+            "generation": 1,
+            "version": 1,
+            "state": "running",
+            "effectStatus": "none",
+            "startedAt": "2026-09-09T00:00:00Z"
+          }
+        ]
+      },
+      "schemaValid": true
+    },
+    {
+      "name": "invalid.event_scope_mismatch",
+      "wireType": "eventPage",
+      "shapeValid": false,
+      "errorCode": "invalid",
+      "value": {
+        "protocolVersion": 1,
+        "schemaId": "harness-wire-v2",
+        "nodeId": "20000000-0000-4000-8000-000000000001",
+        "epoch": 1,
+        "snapshotStateVersion": 4,
+        "lastEventSeq": 23,
+        "nextCursor": null,
+        "pageType": "events",
+        "dialogId": "30000000-0000-4000-8000-000000000001",
+        "attemptId": "60000000-0000-4000-8000-000000000001",
+        "items": [
+          {
+            "protocolVersion": 1,
+            "schemaId": "harness-wire-v2",
+            "nodeId": "20000000-0000-4000-8000-000000000001",
+            "seq": 6,
+            "epoch": 1,
+            "type": "attempt.started",
+            "entityId": "70000000-0000-4000-8000-000000000001",
+            "entityVersion": 1,
+            "attemptId": "60000000-0000-4000-8000-000000000002",
+            "dialogId": "30000000-0000-4000-8000-000000000001",
+            "observedAt": "2026-09-09T00:00:00Z",
+            "completeness": "complete",
+            "payload": {
+              "requestId": "50000000-0000-4000-8000-000000000001",
+              "generation": 1
+            }
+          }
+        ]
+      },
+      "schemaValid": true
+    },
+    {
+      "name": "invalid.event_node_scope_mismatch",
+      "wireType": "eventPage",
+      "shapeValid": false,
+      "errorCode": "invalid",
+      "value": {
+        "protocolVersion": 1,
+        "schemaId": "harness-wire-v2",
+        "nodeId": "20000000-0000-4000-8000-000000000001",
+        "epoch": 1,
+        "snapshotStateVersion": 4,
+        "lastEventSeq": 23,
+        "nextCursor": null,
+        "pageType": "events",
+        "dialogId": "30000000-0000-4000-8000-000000000001",
+        "attemptId": "60000000-0000-4000-8000-000000000001",
+        "items": [
+          {
+            "protocolVersion": 1,
+            "schemaId": "harness-wire-v2",
+            "nodeId": "20000000-0000-4000-8000-000000000002",
+            "seq": 6,
+            "epoch": 1,
+            "type": "attempt.started",
+            "entityId": "70000000-0000-4000-8000-000000000001",
+            "entityVersion": 1,
+            "attemptId": "60000000-0000-4000-8000-000000000001",
+            "dialogId": "30000000-0000-4000-8000-000000000001",
+            "observedAt": "2026-09-09T00:00:00Z",
+            "completeness": "complete",
+            "payload": {
+              "requestId": "50000000-0000-4000-8000-000000000001",
+              "generation": 1
+            }
+          }
+        ]
+      },
+      "schemaValid": true
+    },
+    {
+      "name": "invalid.ready_unverified_capability",
+      "wireType": "healthReady",
+      "shapeValid": false,
+      "errorCode": "invalid",
+      "value": {
+        "protocolVersion": 1,
+        "schemaId": "harness-wire-v2",
+        "checkedAt": "2026-09-09T00:00:00Z",
+        "identity": {
+          "protocolVersion": 1,
+          "schemaId": "harness-wire-v2",
+          "schemaSHA256": "5bd97f2ea08854a8e56d46ff11a1539e6bc54e8ca6d42841b366561accba73d9",
+          "nodeId": "20000000-0000-4000-8000-000000000001",
+          "registryVersion": 1,
+          "identityEpoch": 1,
+          "adapter": {
+            "kind": "codex",
+            "version": "0.153.4"
+          },
+          "capabilities": {
+            "chat": "verified",
+            "events": "verified",
+            "tool_results": "verified",
+            "cancel": "declared",
+            "steer_attached": "verified",
+            "session_resume": "verified",
+            "policy_enforcement": "verified"
+          }
+        },
+        "readiness": "ready",
+        "blockedReasons": []
+      },
+      "schemaValid": true
+    },
+    {
+      "name": "invalid.adapter_version_pin",
+      "wireType": "nodeIdentity",
+      "shapeValid": false,
+      "errorCode": "protocol_mismatch",
+      "value": {
+        "protocolVersion": 1,
+        "schemaId": "harness-wire-v2",
+        "schemaSHA256": "5bd97f2ea08854a8e56d46ff11a1539e6bc54e8ca6d42841b366561accba73d9",
+        "nodeId": "20000000-0000-4000-8000-000000000001",
+        "registryVersion": 1,
+        "identityEpoch": 1,
+        "adapter": {
+          "kind": "cursor",
+          "version": "1.0.30"
+        },
+        "capabilities": {
+          "chat": "verified",
+          "events": "verified",
+          "tool_results": "verified",
+          "cancel": "verified",
+          "steer_attached": "verified",
+          "session_resume": "verified",
+          "policy_enforcement": "verified"
+        }
+      }
+    },
+    {
+      "name": "invalid.compiled_schema_hash",
+      "wireType": "nodeIdentity",
+      "shapeValid": false,
+      "errorCode": "schema_mismatch",
+      "value": {
+        "protocolVersion": 1,
+        "schemaId": "harness-wire-v2",
+        "schemaSHA256": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        "nodeId": "20000000-0000-4000-8000-000000000001",
+        "registryVersion": 1,
+        "identityEpoch": 1,
+        "adapter": {
+          "kind": "cursor",
+          "version": "1.0.31"
+        },
+        "capabilities": {
+          "chat": "verified",
+          "events": "verified",
+          "tool_results": "verified",
+          "cancel": "verified",
+          "steer_attached": "verified",
+          "session_resume": "verified",
+          "policy_enforcement": "verified"
+        }
+      },
+      "schemaValid": true
+    },
+    {
+      "name": "invalid.error_retryability",
+      "wireType": "error",
+      "shapeValid": false,
+      "errorCode": "invalid",
+      "value": {
+        "protocolVersion": 1,
+        "schemaId": "harness-wire-v2",
+        "code": "stale",
+        "safeMessage": "version changed",
+        "retryable": true,
+        "correlationId": "10000000-0000-4000-8000-000000000001",
+        "currentVersion": 2,
+        "currentState": "active"
+      }
+    },
+    {
+      "name": "invalid.snapshot_pending_count",
+      "wireType": "snapshot",
+      "shapeValid": false,
+      "errorCode": "invalid",
+      "value": {
+        "protocolVersion": 1,
+        "schemaId": "harness-wire-v2",
+        "nodeId": "20000000-0000-4000-8000-000000000001",
+        "epoch": 1,
+        "stateVersion": 4,
+        "lastEventSeq": 23,
+        "capturedAt": "2026-09-09T00:00:00Z",
+        "node": {
+          "transportAvailability": "online",
+          "engineReadiness": "ready",
+          "occupancy": "idle",
+          "queuePaused": false,
+          "queueVersion": 1,
+          "pendingCount": 2,
+          "blockedReasons": [],
+          "activeAttemptId": null
+        },
+        "pendingQueue": [
+          {
+            "requestId": "50000000-0000-4000-8000-000000000001",
+            "dialogId": "30000000-0000-4000-8000-000000000001",
+            "inputMessageId": "40000000-0000-4000-8000-000000000001",
+            "queueSequence": 1,
+            "version": 1,
+            "status": "queued"
+          }
+        ],
+        "activeAttempt": null,
+        "completeness": "complete"
+      },
+      "schemaValid": true
+    },
+    {
+      "name": "invalid.snapshot_active_attempt",
+      "wireType": "snapshot",
+      "shapeValid": false,
+      "errorCode": "invalid",
+      "value": {
+        "protocolVersion": 1,
+        "schemaId": "harness-wire-v2",
+        "nodeId": "20000000-0000-4000-8000-000000000001",
+        "epoch": 1,
+        "stateVersion": 4,
+        "lastEventSeq": 23,
+        "capturedAt": "2026-09-09T00:00:00Z",
+        "node": {
+          "transportAvailability": "online",
+          "engineReadiness": "ready",
+          "occupancy": "idle",
+          "queuePaused": false,
+          "queueVersion": 1,
+          "pendingCount": 1,
+          "blockedReasons": [],
+          "activeAttemptId": "60000000-0000-4000-8000-000000000001"
+        },
+        "pendingQueue": [
+          {
+            "requestId": "50000000-0000-4000-8000-000000000001",
+            "dialogId": "30000000-0000-4000-8000-000000000001",
+            "inputMessageId": "40000000-0000-4000-8000-000000000001",
+            "queueSequence": 1,
+            "version": 1,
+            "status": "queued"
+          }
+        ],
+        "activeAttempt": null,
+        "completeness": "complete"
+      },
+      "schemaValid": true
+    },
+    {
+      "name": "invalid.snapshot_duplicate_request",
+      "wireType": "snapshot",
+      "shapeValid": false,
+      "errorCode": "invalid",
+      "value": {
+        "protocolVersion": 1,
+        "schemaId": "harness-wire-v2",
+        "nodeId": "20000000-0000-4000-8000-000000000001",
+        "epoch": 1,
+        "stateVersion": 4,
+        "lastEventSeq": 23,
+        "capturedAt": "2026-09-09T00:00:00Z",
+        "node": {
+          "transportAvailability": "online",
+          "engineReadiness": "ready",
+          "occupancy": "idle",
+          "queuePaused": false,
+          "queueVersion": 1,
+          "pendingCount": 2,
+          "blockedReasons": [],
+          "activeAttemptId": null
+        },
+        "pendingQueue": [
+          {
+            "requestId": "50000000-0000-4000-8000-000000000001",
+            "dialogId": "30000000-0000-4000-8000-000000000001",
+            "inputMessageId": "40000000-0000-4000-8000-000000000001",
+            "queueSequence": 1,
+            "version": 1,
+            "status": "queued"
+          },
+          {
+            "requestId": "50000000-0000-4000-8000-000000000001",
+            "dialogId": "30000000-0000-4000-8000-000000000001",
+            "inputMessageId": "40000000-0000-4000-8000-000000000002",
+            "queueSequence": 2,
+            "version": 1,
+            "status": "queued"
+          }
+        ],
+        "activeAttempt": null,
+        "completeness": "complete"
+      },
+      "schemaValid": true
+    },
+    {
+      "name": "invalid.snapshot_duplicate_message",
+      "wireType": "snapshot",
+      "shapeValid": false,
+      "errorCode": "invalid",
+      "value": {
+        "protocolVersion": 1,
+        "schemaId": "harness-wire-v2",
+        "nodeId": "20000000-0000-4000-8000-000000000001",
+        "epoch": 1,
+        "stateVersion": 4,
+        "lastEventSeq": 23,
+        "capturedAt": "2026-09-09T00:00:00Z",
+        "node": {
+          "transportAvailability": "online",
+          "engineReadiness": "ready",
+          "occupancy": "idle",
+          "queuePaused": false,
+          "queueVersion": 1,
+          "pendingCount": 2,
+          "blockedReasons": [],
+          "activeAttemptId": null
+        },
+        "pendingQueue": [
+          {
+            "requestId": "50000000-0000-4000-8000-000000000001",
+            "dialogId": "30000000-0000-4000-8000-000000000001",
+            "inputMessageId": "40000000-0000-4000-8000-000000000001",
+            "queueSequence": 1,
+            "version": 1,
+            "status": "queued"
+          },
+          {
+            "requestId": "50000000-0000-4000-8000-000000000002",
+            "dialogId": "30000000-0000-4000-8000-000000000001",
+            "inputMessageId": "40000000-0000-4000-8000-000000000001",
+            "queueSequence": 2,
+            "version": 1,
+            "status": "queued"
+          }
+        ],
+        "activeAttempt": null,
+        "completeness": "complete"
+      },
+      "schemaValid": true
+    },
+    {
+      "name": "invalid.snapshot_duplicate_sequence",
+      "wireType": "snapshot",
+      "shapeValid": false,
+      "errorCode": "invalid",
+      "value": {
+        "protocolVersion": 1,
+        "schemaId": "harness-wire-v2",
+        "nodeId": "20000000-0000-4000-8000-000000000001",
+        "epoch": 1,
+        "stateVersion": 4,
+        "lastEventSeq": 23,
+        "capturedAt": "2026-09-09T00:00:00Z",
+        "node": {
+          "transportAvailability": "online",
+          "engineReadiness": "ready",
+          "occupancy": "idle",
+          "queuePaused": false,
+          "queueVersion": 1,
+          "pendingCount": 2,
+          "blockedReasons": [],
+          "activeAttemptId": null
+        },
+        "pendingQueue": [
+          {
+            "requestId": "50000000-0000-4000-8000-000000000001",
+            "dialogId": "30000000-0000-4000-8000-000000000001",
+            "inputMessageId": "40000000-0000-4000-8000-000000000001",
+            "queueSequence": 1,
+            "version": 1,
+            "status": "queued"
+          },
+          {
+            "requestId": "50000000-0000-4000-8000-000000000002",
+            "dialogId": "30000000-0000-4000-8000-000000000001",
+            "inputMessageId": "40000000-0000-4000-8000-000000000002",
+            "queueSequence": 1,
+            "version": 1,
+            "status": "queued"
+          }
+        ],
+        "activeAttempt": null,
+        "completeness": "complete"
+      },
+      "schemaValid": true
+    },
+    {
+      "name": "invalid.snapshot_fifo_order",
+      "wireType": "snapshot",
+      "shapeValid": false,
+      "errorCode": "invalid",
+      "value": {
+        "protocolVersion": 1,
+        "schemaId": "harness-wire-v2",
+        "nodeId": "20000000-0000-4000-8000-000000000001",
+        "epoch": 1,
+        "stateVersion": 4,
+        "lastEventSeq": 23,
+        "capturedAt": "2026-09-09T00:00:00Z",
+        "node": {
+          "transportAvailability": "online",
+          "engineReadiness": "ready",
+          "occupancy": "idle",
+          "queuePaused": false,
+          "queueVersion": 1,
+          "pendingCount": 2,
+          "blockedReasons": [],
+          "activeAttemptId": null
+        },
+        "pendingQueue": [
+          {
+            "requestId": "50000000-0000-4000-8000-000000000001",
+            "dialogId": "30000000-0000-4000-8000-000000000001",
+            "inputMessageId": "40000000-0000-4000-8000-000000000001",
+            "queueSequence": 2,
+            "version": 1,
+            "status": "queued"
+          },
+          {
+            "requestId": "50000000-0000-4000-8000-000000000002",
+            "dialogId": "30000000-0000-4000-8000-000000000001",
+            "inputMessageId": "40000000-0000-4000-8000-000000000002",
+            "queueSequence": 1,
+            "version": 1,
+            "status": "queued"
+          }
+        ],
+        "activeAttempt": null,
+        "completeness": "complete"
+      },
+      "schemaValid": true
+    },
+    {
+      "name": "invalid.command_status_scope",
+      "wireType": "commandStatus",
+      "shapeValid": false,
+      "errorCode": "invalid",
+      "value": {
+        "protocolVersion": 1,
+        "schemaId": "harness-wire-v2",
+        "nodeId": "20000000-0000-4000-8000-000000000001",
+        "commandId": "10000000-0000-4000-8000-000000000001",
+        "canonicalPayloadHash": "0000000000000000000000000000000000000000000000000000000000000000",
+        "status": "accepted",
+        "receipt": {
+          "protocolVersion": 1,
+          "schemaId": "harness-wire-v2",
+          "commandId": "10000000-0000-4000-8000-000000000002",
+          "commandKind": "message.enqueue",
+          "receiptId": "10000000-0000-4000-8000-000000000002",
+          "acceptedAt": "2026-09-09T00:00:00Z",
+          "nodeId": "20000000-0000-4000-8000-000000000001",
+          "eventSeq": 2,
+          "result": "admitted",
+          "references": {
+            "dialogId": "30000000-0000-4000-8000-000000000001",
+            "messageId": "40000000-0000-4000-8000-000000000001",
+            "requestId": "50000000-0000-4000-8000-000000000001"
+          }
+        }
+      },
+      "schemaValid": true
+    },
+    {
+      "name": "invalid.safe_prompt_codepoints",
+      "wireType": "event",
+      "shapeValid": false,
+      "errorCode": "too_large",
+      "value": {
+        "protocolVersion": 1,
+        "schemaId": "harness-wire-v2",
+        "nodeId": "20000000-0000-4000-8000-000000000001",
+        "seq": 18,
+        "epoch": 1,
+        "type": "approval.requested",
+        "entityId": "70000000-0000-4000-8000-000000000001",
+        "entityVersion": 1,
+        "attemptId": "60000000-0000-4000-8000-000000000001",
+        "dialogId": "30000000-0000-4000-8000-000000000001",
+        "observedAt": "2026-09-09T00:00:00Z",
+        "completeness": "complete",
+        "payload": {
+          "approvalId": "90000000-0000-4000-8000-000000000001",
+          "callId": "80000000-0000-4000-8000-000000000001",
+          "actionHash": "0000000000000000000000000000000000000000000000000000000000000000",
+          "safePrompt": "яяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяя",
+          "approvalVersion": 1
+        }
+      }
+    },
+    {
+      "name": "invalid.timestamp_offset_hour",
+      "wireType": "healthLive",
+      "shapeValid": false,
+      "errorCode": "invalid",
+      "value": {
+        "protocolVersion": 1,
+        "schemaId": "harness-wire-v2",
+        "status": "live",
+        "processStartedAt": "2026-01-01T12:00:00+24:00"
+      }
+    },
+    {
+      "name": "invalid.timestamp_fraction_separator",
+      "wireType": "healthLive",
+      "shapeValid": false,
+      "errorCode": "invalid",
+      "value": {
+        "protocolVersion": 1,
+        "schemaId": "harness-wire-v2",
+        "status": "live",
+        "processStartedAt": "2026-01-01T12:00:00,1Z"
+      }
+    },
+    {
+      "name": "invalid.duplicate_key",
+      "wireType": "command",
+      "shapeValid": false,
+      "errorCode": "invalid",
+      "raw": "{\"protocolVersion\":1,\"schemaId\":\"harness-wire-v2\",\"commandId\":\"10000000-0000-4000-8000-000000000001\",\"kind\":\"message.enqueue\",\"target\":{\"nodeId\":\"20000000-0000-4000-8000-000000000001\",\"dialogId\":\"30000000-0000-4000-8000-000000000001\"},\"expected\":{\"dialogVersion\":1},\"payload\":{\"text\":\"one\",\"text\":\"two\"}}"
+    },
+    {
+      "name": "invalid.escaped_duplicate_key",
+      "wireType": "command",
+      "shapeValid": false,
+      "errorCode": "invalid",
+      "raw": "{\"protocolVersion\":1,\"schemaId\":\"harness-wire-v2\",\"commandId\":\"10000000-0000-4000-8000-000000000001\",\"kind\":\"message.enqueue\",\"target\":{\"nodeId\":\"20000000-0000-4000-8000-000000000001\",\"dialogId\":\"30000000-0000-4000-8000-000000000001\"},\"expected\":{\"dialogVersion\":1},\"payload\":{\"text\":\"one\",\"te\\u0078t\":\"two\"}}"
+    },
+    {
+      "name": "invalid.fraction_rounding",
+      "wireType": "command",
+      "shapeValid": false,
+      "errorCode": "invalid",
+      "raw": "{\"protocolVersion\":1,\"schemaId\":\"harness-wire-v2\",\"commandId\":\"10000000-0000-4000-8000-000000000001\",\"kind\":\"message.enqueue\",\"target\":{\"nodeId\":\"20000000-0000-4000-8000-000000000001\",\"dialogId\":\"30000000-0000-4000-8000-000000000001\"},\"expected\":{\"dialogVersion\":9007199254740991.1},\"payload\":{\"text\":\"test\"}}"
+    },
+    {
+      "name": "invalid.fraction_to_one",
+      "wireType": "command",
+      "shapeValid": false,
+      "errorCode": "invalid",
+      "raw": "{\"protocolVersion\":1,\"schemaId\":\"harness-wire-v2\",\"commandId\":\"10000000-0000-4000-8000-000000000001\",\"kind\":\"message.enqueue\",\"target\":{\"nodeId\":\"20000000-0000-4000-8000-000000000001\",\"dialogId\":\"30000000-0000-4000-8000-000000000001\"},\"expected\":{\"dialogVersion\":1.0000000000000001},\"payload\":{\"text\":\"test\"}}"
+    },
+    {
+      "name": "invalid.exponent_integer",
+      "wireType": "command",
+      "shapeValid": false,
+      "errorCode": "invalid",
+      "raw": "{\"protocolVersion\":1,\"schemaId\":\"harness-wire-v2\",\"commandId\":\"10000000-0000-4000-8000-000000000001\",\"kind\":\"message.enqueue\",\"target\":{\"nodeId\":\"20000000-0000-4000-8000-000000000001\",\"dialogId\":\"30000000-0000-4000-8000-000000000001\"},\"expected\":{\"dialogVersion\":1e3},\"payload\":{\"text\":\"test\"}}"
+    },
+    {
+      "name": "invalid.exponent_overflow",
+      "wireType": "command",
+      "shapeValid": false,
+      "errorCode": "invalid",
+      "raw": "{\"protocolVersion\":1,\"schemaId\":\"harness-wire-v2\",\"commandId\":\"10000000-0000-4000-8000-000000000001\",\"kind\":\"message.enqueue\",\"target\":{\"nodeId\":\"20000000-0000-4000-8000-000000000001\",\"dialogId\":\"30000000-0000-4000-8000-000000000001\"},\"expected\":{\"dialogVersion\":1e999},\"payload\":{\"text\":\"test\"}}"
+    },
+    {
+      "name": "invalid.negative_zero",
+      "wireType": "command",
+      "shapeValid": false,
+      "errorCode": "invalid",
+      "raw": "{\"protocolVersion\":1,\"schemaId\":\"harness-wire-v2\",\"commandId\":\"10000000-0000-4000-8000-000000000001\",\"kind\":\"message.enqueue\",\"target\":{\"nodeId\":\"20000000-0000-4000-8000-000000000001\",\"dialogId\":\"30000000-0000-4000-8000-000000000001\"},\"expected\":{\"dialogVersion\":-0},\"payload\":{\"text\":\"test\"}}"
+    },
+    {
+      "name": "state.stale",
+      "wireType": "command",
+      "shapeValid": true,
+      "authoritativeOutcome": "reject",
+      "errorCode": "stale",
+      "value": {
+        "protocolVersion": 1,
+        "schemaId": "harness-wire-v2",
+        "commandId": "10000000-0000-4000-8000-000000000001",
+        "kind": "attempt.stop",
+        "target": {
+          "nodeId": "20000000-0000-4000-8000-000000000001",
+          "attemptId": "60000000-0000-4000-8000-000000000001"
+        },
+        "expected": {
+          "attemptGeneration": 1
+        },
+        "payload": {}
+      }
+    },
+    {
+      "name": "state.foreign_object",
+      "wireType": "command",
+      "shapeValid": true,
+      "authoritativeOutcome": "reject",
+      "errorCode": "not_found",
+      "value": {
+        "protocolVersion": 1,
+        "schemaId": "harness-wire-v2",
+        "commandId": "10000000-0000-4000-8000-000000000001",
+        "kind": "request.cancel",
+        "target": {
+          "nodeId": "20000000-0000-4000-8000-000000000001",
+          "requestId": "50000000-0000-4000-8000-000000000001"
+        },
+        "expected": {
+          "requestVersion": 1
+        },
+        "payload": {}
+      }
+    },
+    {
+      "name": "state.id_conflict",
+      "wireType": "command",
+      "shapeValid": true,
+      "authoritativeOutcome": "reject",
+      "errorCode": "id_conflict",
+      "value": {
+        "protocolVersion": 1,
+        "schemaId": "harness-wire-v2",
+        "commandId": "10000000-0000-4000-8000-000000000001",
+        "kind": "message.enqueue",
+        "target": {
+          "nodeId": "20000000-0000-4000-8000-000000000001",
+          "dialogId": "30000000-0000-4000-8000-000000000001"
+        },
+        "expected": {
+          "dialogVersion": 1
+        },
+        "payload": {
+          "text": "test"
+        }
+      }
+    },
+    {
+      "name": "state.duplicate_same_payload",
+      "wireType": "command",
+      "shapeValid": true,
+      "authoritativeOutcome": "return_original_receipt",
+      "value": {
+        "protocolVersion": 1,
+        "schemaId": "harness-wire-v2",
+        "commandId": "10000000-0000-4000-8000-000000000001",
+        "kind": "message.enqueue",
+        "target": {
+          "nodeId": "20000000-0000-4000-8000-000000000001",
+          "dialogId": "30000000-0000-4000-8000-000000000001"
+        },
+        "expected": {
+          "dialogVersion": 1
+        },
+        "payload": {
+          "text": "test"
+        }
+      }
+    },
+    {
+      "name": "state.unknown_blocks",
+      "wireType": "event",
+      "shapeValid": true,
+      "authoritativeOutcome": "block_new_starts",
+      "value": {
+        "protocolVersion": 1,
+        "schemaId": "harness-wire-v2",
+        "nodeId": "20000000-0000-4000-8000-000000000001",
+        "seq": 12,
+        "epoch": 1,
+        "type": "attempt.unknown",
+        "entityId": "70000000-0000-4000-8000-000000000001",
+        "entityVersion": 1,
+        "attemptId": "60000000-0000-4000-8000-000000000001",
+        "dialogId": "30000000-0000-4000-8000-000000000001",
+        "observedAt": "2026-09-09T00:00:00Z",
+        "completeness": "complete",
+        "payload": {
+          "generation": 1,
+          "reason": "cancel_unconfirmed",
+          "effectStatus": "unknown"
+        }
+      }
+    },
+    {
+      "name": "state.late_generation",
+      "wireType": "event",
+      "shapeValid": true,
+      "authoritativeOutcome": "record_without_mutating_active_slot",
+      "value": {
+        "protocolVersion": 1,
+        "schemaId": "harness-wire-v2",
+        "nodeId": "20000000-0000-4000-8000-000000000001",
+        "seq": 9,
+        "epoch": 1,
+        "type": "attempt.completed",
+        "entityId": "70000000-0000-4000-8000-000000000001",
+        "entityVersion": 1,
+        "attemptId": "60000000-0000-4000-8000-000000000001",
+        "dialogId": "30000000-0000-4000-8000-000000000001",
+        "observedAt": "2026-09-09T00:00:00Z",
+        "completeness": "complete",
+        "payload": {
+          "generation": 1,
+          "output": {
+            "kind": "empty"
+          }
+        }
+      }
+    }
+  ]
+}

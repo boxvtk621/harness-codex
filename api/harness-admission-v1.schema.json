@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://homelab.local/schemas/harness-admission-v1.schema.json",
+  "title": "Harness admission profile v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaId", "ownerId", "nodeId", "registrationRevision", "identityEpoch", "wireSchemaSHA256", "adapter", "readiness", "capabilities"],
+  "properties": {
+    "schemaId": {"const": "harness-admission-v1"},
+    "ownerId": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@-]{0,127}$"},
+    "nodeId": {"type": "string", "format": "uuid"},
+    "registrationRevision": {"type": "integer", "minimum": 1, "maximum": 9007199254740991},
+    "identityEpoch": {"type": "integer", "minimum": 1, "maximum": 9007199254740991},
+    "wireSchemaSHA256": {"const": "5bd97f2ea08854a8e56d46ff11a1539e6bc54e8ca6d42841b366561accba73d9"},
+    "adapter": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "version"],
+          "properties": {"kind": {"const": "cursor"}, "version": {"const": "1.0.31"}}
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "version"],
+          "properties": {"kind": {"const": "codex"}, "version": {"const": "0.153.4"}}
+        }
+      ]
+    },
+    "readiness": {"enum": ["ready", "blocked", "unknown"]},
+    "capabilities": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["profile", "native_epoch", "policy_enforcement", "history", "facts", "durable_receipts", "replica_export", "replica_import", "asset_export", "asset_import", "scoped_quiesce", "ownership_release", "target_reservation"],
+      "properties": {
+        "profile": {"type": "boolean"},
+        "native_epoch": {"type": "boolean"},
+        "policy_enforcement": {"type": "boolean"},
+        "history": {"type": "boolean"},
+        "facts": {"type": "boolean"},
+        "durable_receipts": {"type": "boolean"},
+        "replica_export": {"type": "boolean"},
+        "replica_import": {"type": "boolean"},
+        "asset_export": {"type": "boolean"},
+        "asset_import": {"type": "boolean"},
+        "scoped_quiesce": {"type": "boolean"},
+        "ownership_release": {"type": "boolean"},
+        "target_reservation": {"type": "boolean"}
+      }
+    }
+  }
+}

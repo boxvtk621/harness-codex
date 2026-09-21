@@ -1,0 +1,384 @@
+{
+  "format": "harness-canonical-acceptance-v1",
+  "basis": "C1 command schema with JCS subset: ASCII keys, safe integers, valid Unicode strings; expected hashes independently generated with Python sort_keys/ensure_ascii=False/compact JSON",
+  "vectors": [
+    {
+      "name": "command.1.dialog.create",
+      "command": {
+        "protocolVersion": 1,
+        "schemaId": "harness-wire-v2",
+        "commandId": "10000000-0000-4000-8000-000000000001",
+        "kind": "dialog.create",
+        "target": {
+          "nodeId": "20000000-0000-4000-8000-000000000001"
+        },
+        "expected": {
+          "registryVersion": 1
+        },
+        "payload": {
+          "title": "test"
+        }
+      },
+      "sha256": "8b20aa4a084b53a0110064f6777051539dd0abb936431d48729c692c4416d09f"
+    },
+    {
+      "name": "command.2.message.enqueue",
+      "command": {
+        "protocolVersion": 1,
+        "schemaId": "harness-wire-v2",
+        "commandId": "10000000-0000-4000-8000-000000000001",
+        "kind": "message.enqueue",
+        "target": {
+          "nodeId": "20000000-0000-4000-8000-000000000001",
+          "dialogId": "30000000-0000-4000-8000-000000000001"
+        },
+        "expected": {
+          "dialogVersion": 1
+        },
+        "payload": {
+          "text": "test"
+        }
+      },
+      "sha256": "98ac21850120f258409564d3049818095d0da94dceb8c52d026eb8130abed916"
+    },
+    {
+      "name": "command.3.message.steer",
+      "command": {
+        "protocolVersion": 1,
+        "schemaId": "harness-wire-v2",
+        "commandId": "10000000-0000-4000-8000-000000000001",
+        "kind": "message.steer",
+        "target": {
+          "nodeId": "20000000-0000-4000-8000-000000000001",
+          "dialogId": "30000000-0000-4000-8000-000000000001",
+          "attemptId": "60000000-0000-4000-8000-000000000001",
+          "messageId": "40000000-0000-4000-8000-000000000001"
+        },
+        "expected": {
+          "attemptGeneration": 1,
+          "messageVersion": 1
+        },
+        "payload": {}
+      },
+      "sha256": "7062bfa6a96dcb03c65325205ca92c93d46af0f2a510c25b1b2f2a1c698d71b3"
+    },
+    {
+      "name": "command.4.request.cancel",
+      "command": {
+        "protocolVersion": 1,
+        "schemaId": "harness-wire-v2",
+        "commandId": "10000000-0000-4000-8000-000000000001",
+        "kind": "request.cancel",
+        "target": {
+          "nodeId": "20000000-0000-4000-8000-000000000001",
+          "requestId": "50000000-0000-4000-8000-000000000001"
+        },
+        "expected": {
+          "requestVersion": 1
+        },
+        "payload": {}
+      },
+      "sha256": "954c3863d733acb0a91d68ff45a632fdf6d438e9e5575fef5e069ef05e4f6b9b"
+    },
+    {
+      "name": "command.5.attempt.stop",
+      "command": {
+        "protocolVersion": 1,
+        "schemaId": "harness-wire-v2",
+        "commandId": "10000000-0000-4000-8000-000000000001",
+        "kind": "attempt.stop",
+        "target": {
+          "nodeId": "20000000-0000-4000-8000-000000000001",
+          "attemptId": "60000000-0000-4000-8000-000000000001"
+        },
+        "expected": {
+          "attemptGeneration": 1
+        },
+        "payload": {}
+      },
+      "sha256": "2c901aa17acc79d3e7c0af57650742d095eb2aaa666b4bd92ca0ae9454411789"
+    },
+    {
+      "name": "command.6.queue.resume",
+      "command": {
+        "protocolVersion": 1,
+        "schemaId": "harness-wire-v2",
+        "commandId": "10000000-0000-4000-8000-000000000001",
+        "kind": "queue.resume",
+        "target": {
+          "nodeId": "20000000-0000-4000-8000-000000000001"
+        },
+        "expected": {
+          "queueVersion": 1
+        },
+        "payload": {}
+      },
+      "sha256": "1a91142944ca312d2207c3b3d3317047a7c6180f2352e57071e38e26dd058061"
+    },
+    {
+      "name": "command.7.attempt.retry",
+      "command": {
+        "protocolVersion": 1,
+        "schemaId": "harness-wire-v2",
+        "commandId": "10000000-0000-4000-8000-000000000001",
+        "kind": "attempt.retry",
+        "target": {
+          "nodeId": "20000000-0000-4000-8000-000000000001",
+          "attemptId": "60000000-0000-4000-8000-000000000001"
+        },
+        "expected": {
+          "attemptGeneration": 1
+        },
+        "payload": {
+          "acknowledgeKnownEffects": false
+        }
+      },
+      "sha256": "b94a0004becc45f1788a4eb97fb1bec885b278269105928108cecda99f468f87"
+    },
+    {
+      "name": "command.8.approval.respond",
+      "command": {
+        "protocolVersion": 1,
+        "schemaId": "harness-wire-v2",
+        "commandId": "10000000-0000-4000-8000-000000000001",
+        "kind": "approval.respond",
+        "target": {
+          "nodeId": "20000000-0000-4000-8000-000000000001",
+          "approvalId": "90000000-0000-4000-8000-000000000001",
+          "attemptId": "60000000-0000-4000-8000-000000000001"
+        },
+        "expected": {
+          "approvalVersion": 1,
+          "attemptGeneration": 1
+        },
+        "payload": {
+          "decision": "allow_once",
+          "actionHash": "0000000000000000000000000000000000000000000000000000000000000000"
+        }
+      },
+      "sha256": "a3f8f7438e8defcd5e900164ef10656bf7a667ae869595abcfc7601a861da73b"
+    },
+    {
+      "name": "command.9.input.respond",
+      "command": {
+        "protocolVersion": 1,
+        "schemaId": "harness-wire-v2",
+        "commandId": "10000000-0000-4000-8000-000000000001",
+        "kind": "input.respond",
+        "target": {
+          "nodeId": "20000000-0000-4000-8000-000000000001",
+          "inputRequestId": "a0000000-0000-4000-8000-000000000001",
+          "attemptId": "60000000-0000-4000-8000-000000000001"
+        },
+        "expected": {
+          "inputVersion": 1,
+          "attemptGeneration": 1
+        },
+        "payload": {
+          "text": "test"
+        }
+      },
+      "sha256": "badced0d180f4d03cd2f3ae5b1fbb9f76b1826f8b1a6d4de7e55b9cd529b2c5a"
+    },
+    {
+      "name": "cyrillic",
+      "command": {
+        "protocolVersion": 1,
+        "schemaId": "harness-wire-v2",
+        "commandId": "10000000-0000-4000-8000-000000000001",
+        "kind": "message.enqueue",
+        "target": {
+          "nodeId": "20000000-0000-4000-8000-000000000001",
+          "dialogId": "30000000-0000-4000-8000-000000000001"
+        },
+        "expected": {
+          "dialogVersion": 1
+        },
+        "payload": {
+          "text": "Проверка"
+        }
+      },
+      "sha256": "2a8578987eaf650a45fa1982ee93b75382df19cb64e173bc5188b7251dfcda4f"
+    },
+    {
+      "name": "html",
+      "command": {
+        "protocolVersion": 1,
+        "schemaId": "harness-wire-v2",
+        "commandId": "10000000-0000-4000-8000-000000000001",
+        "kind": "message.enqueue",
+        "target": {
+          "nodeId": "20000000-0000-4000-8000-000000000001",
+          "dialogId": "30000000-0000-4000-8000-000000000001"
+        },
+        "expected": {
+          "dialogVersion": 1
+        },
+        "payload": {
+          "text": "<>&"
+        }
+      },
+      "sha256": "5efcbeab0c1ed601ed55d6ec9452e4c0ef026bd5816dd17f0b625c145aff52bf"
+    },
+    {
+      "name": "separators",
+      "command": {
+        "protocolVersion": 1,
+        "schemaId": "harness-wire-v2",
+        "commandId": "10000000-0000-4000-8000-000000000001",
+        "kind": "message.enqueue",
+        "target": {
+          "nodeId": "20000000-0000-4000-8000-000000000001",
+          "dialogId": "30000000-0000-4000-8000-000000000001"
+        },
+        "expected": {
+          "dialogVersion": 1
+        },
+        "payload": {
+          "text": "  "
+        }
+      },
+      "sha256": "7b9694921577959fcdbb95cbff1e7472d8bd3be42ce78fba148f18284058ffed"
+    },
+    {
+      "name": "astral",
+      "command": {
+        "protocolVersion": 1,
+        "schemaId": "harness-wire-v2",
+        "commandId": "10000000-0000-4000-8000-000000000001",
+        "kind": "message.enqueue",
+        "target": {
+          "nodeId": "20000000-0000-4000-8000-000000000001",
+          "dialogId": "30000000-0000-4000-8000-000000000001"
+        },
+        "expected": {
+          "dialogVersion": 1
+        },
+        "payload": {
+          "text": "😀"
+        }
+      },
+      "sha256": "1cea6ca24aee633ef6fb2277d1c67f46c0edadf91f48e1192dd129a7dfc03bae"
+    },
+    {
+      "name": "composed",
+      "command": {
+        "protocolVersion": 1,
+        "schemaId": "harness-wire-v2",
+        "commandId": "10000000-0000-4000-8000-000000000001",
+        "kind": "message.enqueue",
+        "target": {
+          "nodeId": "20000000-0000-4000-8000-000000000001",
+          "dialogId": "30000000-0000-4000-8000-000000000001"
+        },
+        "expected": {
+          "dialogVersion": 1
+        },
+        "payload": {
+          "text": "é"
+        }
+      },
+      "sha256": "8fd87d77b7001f88c84e1d56d076b103967e8a842489ec991c72b81352606d02"
+    },
+    {
+      "name": "decomposed",
+      "command": {
+        "protocolVersion": 1,
+        "schemaId": "harness-wire-v2",
+        "commandId": "10000000-0000-4000-8000-000000000001",
+        "kind": "message.enqueue",
+        "target": {
+          "nodeId": "20000000-0000-4000-8000-000000000001",
+          "dialogId": "30000000-0000-4000-8000-000000000001"
+        },
+        "expected": {
+          "dialogVersion": 1
+        },
+        "payload": {
+          "text": "é"
+        }
+      },
+      "sha256": "97c7a4e4ae1fb569884970249db878f339eb9a3928e2c33e3e52ef91e44b0548"
+    },
+    {
+      "name": "escaped",
+      "command": {
+        "protocolVersion": 1,
+        "schemaId": "harness-wire-v2",
+        "commandId": "10000000-0000-4000-8000-000000000001",
+        "kind": "message.enqueue",
+        "target": {
+          "nodeId": "20000000-0000-4000-8000-000000000001",
+          "dialogId": "30000000-0000-4000-8000-000000000001"
+        },
+        "expected": {
+          "dialogVersion": 1
+        },
+        "payload": {
+          "text": "\"\\\n\t\b\f\r"
+        }
+      },
+      "sha256": "7e104b5556775e6f1a54ce48912094181a621331ca53cfda04fbba70dc5e3f90"
+    },
+    {
+      "name": "combined",
+      "command": {
+        "protocolVersion": 1,
+        "schemaId": "harness-wire-v2",
+        "commandId": "10000000-0000-4000-8000-000000000001",
+        "kind": "message.enqueue",
+        "target": {
+          "nodeId": "20000000-0000-4000-8000-000000000001",
+          "dialogId": "30000000-0000-4000-8000-000000000001"
+        },
+        "expected": {
+          "dialogVersion": 1
+        },
+        "payload": {
+          "text": "Проверка <>&\n😀é"
+        }
+      },
+      "sha256": "909b5c1483f589b882dfdc42119e46d976a869301126c46be013e1b87fa13e15"
+    },
+    {
+      "name": "reordered-equivalent",
+      "command": {
+        "payload": {
+          "text": "test"
+        },
+        "expected": {
+          "dialogVersion": 1
+        },
+        "target": {
+          "dialogId": "30000000-0000-4000-8000-000000000001",
+          "nodeId": "20000000-0000-4000-8000-000000000001"
+        },
+        "kind": "message.enqueue",
+        "commandId": "10000000-0000-4000-8000-000000000001",
+        "schemaId": "harness-wire-v2",
+        "protocolVersion": 1
+      },
+      "sha256": "98ac21850120f258409564d3049818095d0da94dceb8c52d026eb8130abed916"
+    },
+    {
+      "name": "different-expected-version",
+      "command": {
+        "protocolVersion": 1,
+        "schemaId": "harness-wire-v2",
+        "commandId": "10000000-0000-4000-8000-000000000001",
+        "kind": "message.enqueue",
+        "target": {
+          "nodeId": "20000000-0000-4000-8000-000000000001",
+          "dialogId": "30000000-0000-4000-8000-000000000001"
+        },
+        "expected": {
+          "dialogVersion": 2
+        },
+        "payload": {
+          "text": "test"
+        }
+      },
+      "sha256": "f3264971c62709d875e94f81b4933ceb3e097e442212b72970d7cbc9f6585b8f"
+    }
+  ]
+}

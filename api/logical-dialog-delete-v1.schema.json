@@ -1,0 +1,410 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://homelab.invalid/contracts/logical-dialog-delete-v1.schema.json",
+  "title": "Owner-scoped logical dialog deletion v1",
+  "description": "Exact coordinator, Agent Service, and private Harness contracts for R13 logical deletion. The contract preserves durable bytes and does not extend the browser Harness wire protocol.",
+  "oneOf": [
+    { "$ref": "#/$defs/request" },
+    { "$ref": "#/$defs/status" },
+    { "$ref": "#/$defs/advance" },
+    { "$ref": "#/$defs/nodeRequest" },
+    { "$ref": "#/$defs/nodeReceipt" },
+    { "$ref": "#/$defs/closureDescriptor" }
+  ],
+  "$defs": {
+    "uuid": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "positiveVersion": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 },
+    "incrementableVersion": { "type": "integer", "minimum": 1, "maximum": 9007199254740990 },
+    "nonnegativeVersion": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+    "resultCode": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@-]{0,127}$" },
+    "request": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaId",
+        "operationId",
+        "commandId",
+        "logicalDialogId",
+        "expectedBindingVersion",
+        "expectedDialogVersion"
+      ],
+      "properties": {
+        "schemaId": { "const": "logical-dialog-delete-v1" },
+        "operationId": { "$ref": "#/$defs/uuid" },
+        "commandId": { "$ref": "#/$defs/uuid" },
+        "logicalDialogId": { "$ref": "#/$defs/uuid" },
+        "expectedBindingVersion": { "$ref": "#/$defs/positiveVersion" },
+        "expectedDialogVersion": { "$ref": "#/$defs/incrementableVersion" }
+      }
+    },
+    "commandReceipt": {
+      "allOf": [
+        { "$ref": "https://h1-cloud.local/schemas/harness-wire-v2.json#/$defs/receipt" },
+        {
+          "type": "object",
+          "properties": {
+            "commandKind": { "const": "dialog.delete" },
+            "result": { "const": "deleted" }
+          },
+          "not": {
+            "type": "object",
+            "properties": { "blockingReason": true },
+            "required": ["blockingReason"]
+          }
+        }
+      ]
+    },
+    "nodeReceipt": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaId",
+        "operationId",
+        "nodeRequestHash",
+        "coordinatorRequestHash",
+        "receiptId",
+        "commandId",
+        "logicalDialogId",
+        "nodeId",
+        "nodeDialogId",
+        "epoch",
+        "registryVersion",
+        "bindingVersion",
+        "deletedDialogVersion",
+        "holdVersion",
+        "holdScopeRevision",
+        "tombstoneEventSeq",
+        "commandReceipt",
+        "deletedAt"
+      ],
+      "properties": {
+        "schemaId": { "const": "logical-dialog-node-delete-v1" },
+        "operationId": { "$ref": "#/$defs/uuid" },
+        "nodeRequestHash": { "$ref": "#/$defs/sha256" },
+        "coordinatorRequestHash": { "$ref": "#/$defs/sha256" },
+        "receiptId": { "$ref": "#/$defs/uuid" },
+        "commandId": { "$ref": "#/$defs/uuid" },
+        "logicalDialogId": { "$ref": "#/$defs/uuid" },
+        "nodeId": { "$ref": "#/$defs/uuid" },
+        "nodeDialogId": { "$ref": "#/$defs/uuid" },
+        "epoch": { "$ref": "#/$defs/positiveVersion" },
+        "registryVersion": { "$ref": "#/$defs/positiveVersion" },
+        "bindingVersion": { "$ref": "#/$defs/positiveVersion" },
+        "deletedDialogVersion": { "$ref": "#/$defs/positiveVersion" },
+        "holdVersion": { "$ref": "#/$defs/positiveVersion" },
+        "holdScopeRevision": { "$ref": "#/$defs/positiveVersion" },
+        "tombstoneEventSeq": { "$ref": "#/$defs/positiveVersion" },
+        "commandReceipt": { "$ref": "#/$defs/commandReceipt" },
+        "deletedAt": { "type": "string", "format": "date-time" }
+      }
+    },
+    "status": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaId",
+        "operationId",
+        "requestHash",
+        "commandId",
+        "logicalDialogId",
+        "expectedBindingVersion",
+        "expectedDialogVersion",
+        "nodeId",
+        "nodeDialogId",
+        "registryVersion",
+        "identityEpoch",
+        "holdScopeRevision",
+        "phase",
+        "effectState",
+        "operationVersion",
+        "archived",
+        "updatedAt"
+      ],
+      "properties": {
+        "schemaId": { "const": "logical-dialog-delete-v1" },
+        "operationId": { "$ref": "#/$defs/uuid" },
+        "requestHash": { "$ref": "#/$defs/sha256" },
+        "commandId": { "$ref": "#/$defs/uuid" },
+        "logicalDialogId": { "$ref": "#/$defs/uuid" },
+        "expectedBindingVersion": { "$ref": "#/$defs/positiveVersion" },
+        "expectedDialogVersion": { "$ref": "#/$defs/incrementableVersion" },
+        "nodeId": { "$ref": "#/$defs/uuid" },
+        "nodeDialogId": { "$ref": "#/$defs/uuid" },
+        "registryVersion": { "$ref": "#/$defs/positiveVersion" },
+        "identityEpoch": { "$ref": "#/$defs/positiveVersion" },
+        "holdScopeRevision": { "$ref": "#/$defs/nonnegativeVersion" },
+        "holdVersion": { "$ref": "#/$defs/positiveVersion" },
+        "phase": { "enum": ["accepted", "holding", "reconciling", "succeeded", "failed"] },
+        "effectState": { "enum": ["not_sent", "sent", "unknown", "reconciled", "failed"] },
+        "operationVersion": { "$ref": "#/$defs/positiveVersion" },
+        "archived": { "type": "boolean" },
+        "resultCode": { "$ref": "#/$defs/resultCode" },
+        "nodeReceipt": { "$ref": "#/$defs/nodeReceipt" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "phase": { "const": "accepted" },
+            "effectState": { "const": "not_sent" },
+            "archived": { "const": false }
+          },
+          "not": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": { "holdVersion": true },
+                "required": ["holdVersion"]
+              },
+              {
+                "type": "object",
+                "properties": { "resultCode": true },
+                "required": ["resultCode"]
+              },
+              {
+                "type": "object",
+                "properties": { "nodeReceipt": true },
+                "required": ["nodeReceipt"]
+              }
+            ]
+          }
+        },
+        {
+          "type": "object",
+          "required": ["holdVersion"],
+          "properties": {
+            "phase": { "const": "holding" },
+            "effectState": { "const": "sent" },
+            "archived": { "const": false },
+            "holdVersion": { "$ref": "#/$defs/positiveVersion" }
+          },
+          "not": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": { "resultCode": true },
+                "required": ["resultCode"]
+              },
+              {
+                "type": "object",
+                "properties": { "nodeReceipt": true },
+                "required": ["nodeReceipt"]
+              }
+            ]
+          }
+        },
+        {
+          "type": "object",
+          "required": ["holdVersion"],
+          "properties": {
+            "phase": { "const": "reconciling" },
+            "effectState": { "const": "unknown" },
+            "archived": { "const": false },
+            "holdVersion": { "$ref": "#/$defs/positiveVersion" }
+          },
+          "not": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": { "resultCode": true },
+                "required": ["resultCode"]
+              },
+              {
+                "type": "object",
+                "properties": { "nodeReceipt": true },
+                "required": ["nodeReceipt"]
+              }
+            ]
+          }
+        },
+        {
+          "type": "object",
+          "required": ["resultCode"],
+          "properties": {
+            "phase": { "const": "succeeded" },
+            "effectState": { "const": "reconciled" },
+            "archived": { "const": true },
+            "resultCode": { "const": "archive_tombstoned" }
+          },
+          "not": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": { "holdVersion": true },
+                "required": ["holdVersion"]
+              },
+              {
+                "type": "object",
+                "properties": { "nodeReceipt": true },
+                "required": ["nodeReceipt"]
+              }
+            ]
+          }
+        },
+        {
+          "type": "object",
+          "required": ["holdVersion", "resultCode", "nodeReceipt"],
+          "properties": {
+            "phase": { "const": "succeeded" },
+            "effectState": { "const": "reconciled" },
+            "archived": { "const": false },
+            "holdVersion": { "$ref": "#/$defs/positiveVersion" },
+            "resultCode": { "const": "node_tombstoned" },
+            "nodeReceipt": { "$ref": "#/$defs/nodeReceipt" }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["resultCode"],
+          "properties": {
+            "phase": { "const": "failed" },
+            "effectState": { "const": "failed" },
+            "archived": { "const": false },
+            "holdVersion": { "$ref": "#/$defs/positiveVersion" },
+            "resultCode": { "$ref": "#/$defs/resultCode" }
+          },
+          "not": {
+            "type": "object",
+            "properties": { "nodeReceipt": true },
+            "required": ["nodeReceipt"]
+          }
+        }
+      ]
+    },
+    "advance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaId",
+        "operationId",
+        "requestHash",
+        "expectedOperationVersion",
+        "action",
+        "holdVersion",
+        "observedHoldScopeRevision",
+        "resultCode",
+        "nodeReceipt"
+      ],
+      "properties": {
+        "schemaId": { "const": "logical-dialog-delete-advance-v1" },
+        "operationId": { "$ref": "#/$defs/uuid" },
+        "requestHash": { "$ref": "#/$defs/sha256" },
+        "expectedOperationVersion": { "$ref": "#/$defs/positiveVersion" },
+        "action": { "enum": ["hold", "unknown", "complete", "reject"] },
+        "holdVersion": { "$ref": "#/$defs/nonnegativeVersion" },
+        "observedHoldScopeRevision": { "$ref": "#/$defs/nonnegativeVersion" },
+        "resultCode": { "type": "string", "maxLength": 128 },
+        "nodeReceipt": { "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/nodeReceipt" }] }
+      },
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "action": { "const": "hold" },
+            "holdVersion": { "$ref": "#/$defs/positiveVersion" },
+            "observedHoldScopeRevision": { "$ref": "#/$defs/positiveVersion" },
+            "resultCode": { "const": "" },
+            "nodeReceipt": { "type": "null" }
+          }
+        },
+        {
+          "type": "object",
+          "properties": {
+            "action": { "const": "unknown" },
+            "holdVersion": { "const": 0 },
+            "observedHoldScopeRevision": { "const": 0 },
+            "resultCode": { "const": "" },
+            "nodeReceipt": { "type": "null" }
+          }
+        },
+        {
+          "type": "object",
+          "properties": {
+            "action": { "const": "complete" },
+            "holdVersion": { "const": 0 },
+            "observedHoldScopeRevision": { "const": 0 },
+            "resultCode": { "const": "" },
+            "nodeReceipt": { "$ref": "#/$defs/nodeReceipt" }
+          }
+        },
+        {
+          "type": "object",
+          "properties": {
+            "action": { "const": "reject" },
+            "holdVersion": { "const": 0 },
+            "observedHoldScopeRevision": { "$ref": "#/$defs/nonnegativeVersion" },
+            "resultCode": { "$ref": "#/$defs/resultCode" },
+            "nodeReceipt": { "type": "null" }
+          }
+        }
+      ]
+    },
+    "nodeRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaId",
+        "operationId",
+        "coordinatorRequestHash",
+        "commandId",
+        "logicalDialogId",
+        "nodeId",
+        "nodeDialogId",
+        "expectedEpoch",
+        "registryVersion",
+        "bindingVersion",
+        "expectedDialogVersion",
+        "holdVersion",
+        "holdScopeRevision"
+      ],
+      "properties": {
+        "schemaId": { "const": "logical-dialog-node-delete-v1" },
+        "operationId": { "$ref": "#/$defs/uuid" },
+        "coordinatorRequestHash": { "$ref": "#/$defs/sha256" },
+        "commandId": { "$ref": "#/$defs/uuid" },
+        "logicalDialogId": { "$ref": "#/$defs/uuid" },
+        "nodeId": { "$ref": "#/$defs/uuid" },
+        "nodeDialogId": { "$ref": "#/$defs/uuid" },
+        "expectedEpoch": { "$ref": "#/$defs/positiveVersion" },
+        "registryVersion": { "$ref": "#/$defs/positiveVersion" },
+        "bindingVersion": { "$ref": "#/$defs/positiveVersion" },
+        "expectedDialogVersion": { "$ref": "#/$defs/incrementableVersion" },
+        "holdVersion": { "$ref": "#/$defs/positiveVersion" },
+        "holdScopeRevision": { "$ref": "#/$defs/positiveVersion" }
+      }
+    },
+    "closureDescriptor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "logicalDialogId",
+        "bindingVersion",
+        "nodeId",
+        "nodeDialogId",
+        "dialogVersion",
+        "descriptorVersion",
+        "zeroPending",
+        "finalCheckpoint",
+        "finalCheckpointSHA256",
+        "verifiedAt"
+      ],
+      "properties": {
+        "logicalDialogId": { "$ref": "#/$defs/uuid" },
+        "bindingVersion": { "$ref": "#/$defs/positiveVersion" },
+        "nodeId": { "$ref": "#/$defs/uuid" },
+        "nodeDialogId": { "$ref": "#/$defs/uuid" },
+        "dialogVersion": { "$ref": "#/$defs/positiveVersion" },
+        "descriptorVersion": { "$ref": "#/$defs/positiveVersion" },
+        "zeroPending": { "const": true },
+        "finalCheckpoint": { "type": "object" },
+        "finalCheckpointSHA256": { "$ref": "#/$defs/sha256" },
+        "verifiedAt": { "type": "string", "format": "date-time" }
+      }
+    }
+  }
+}

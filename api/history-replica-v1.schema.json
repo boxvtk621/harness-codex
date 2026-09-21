@@ -1,0 +1,402 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://h1-cloud.local/schemas/history-replica-v1.schema.json",
+  "title": "HL-279 normalized Harness history export and PostgreSQL replica",
+  "$ref": "#/$defs/exportPage",
+  "$defs": {
+    "uuid": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "safeInteger": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 9007199254740991
+    },
+    "positiveInteger": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 9007199254740991
+    },
+    "timestamp": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\\.[0-9]+)?Z$"
+    },
+    "origin": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["nodeId", "nodeDialogId", "authorEventId"],
+      "properties": {
+        "nodeId": { "$ref": "#/$defs/uuid" },
+        "nodeDialogId": { "$ref": "#/$defs/uuid" },
+        "authorEventId": { "type": "string", "minLength": 1, "maxLength": 256 }
+      }
+    },
+    "identity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ownerId", "logicalDialogId", "nodeId", "nodeDialogId", "bindingGeneration"],
+      "properties": {
+        "ownerId": { "type": "string", "minLength": 1, "x-utf8MaxBytes": 200 },
+        "logicalDialogId": { "$ref": "#/$defs/uuid" },
+        "nodeId": { "$ref": "#/$defs/uuid" },
+        "nodeDialogId": { "$ref": "#/$defs/uuid" },
+        "bindingGeneration": { "$ref": "#/$defs/positiveInteger" }
+      }
+    },
+    "record": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["streamSeq", "type", "recordId", "entityId", "revision", "payload", "recordHash", "prevHash", "chainHash"],
+      "properties": {
+        "streamSeq": { "$ref": "#/$defs/positiveInteger" },
+        "type": {
+          "enum": ["entry", "execution_fact", "receipt_revision", "text_manifest", "text_chunk", "asset_manifest"]
+        },
+        "recordId": { "$ref": "#/$defs/uuid" },
+        "entityId": { "$ref": "#/$defs/uuid" },
+        "revision": { "$ref": "#/$defs/positiveInteger" },
+        "payload": { "type": "object" },
+        "recordHash": { "$ref": "#/$defs/sha256" },
+        "prevHash": { "$ref": "#/$defs/sha256" },
+        "chainHash": { "$ref": "#/$defs/sha256" }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "type": { "const": "entry" } }, "required": ["type"] },
+          "then": { "properties": { "payload": { "$ref": "#/$defs/transcriptEntry" } } }
+        },
+        {
+          "if": { "properties": { "type": { "const": "execution_fact" } }, "required": ["type"] },
+          "then": { "properties": { "payload": { "$ref": "#/$defs/executionFact" } } }
+        },
+        {
+          "if": { "properties": { "type": { "const": "receipt_revision" } }, "required": ["type"] },
+          "then": { "properties": { "payload": { "$ref": "#/$defs/receiptRevision" } } }
+        },
+        {
+          "if": { "properties": { "type": { "const": "text_manifest" } }, "required": ["type"] },
+          "then": { "properties": { "payload": { "$ref": "#/$defs/textManifest" } } }
+        },
+        {
+          "if": { "properties": { "type": { "const": "text_chunk" } }, "required": ["type"] },
+          "then": { "properties": { "payload": { "$ref": "#/$defs/textChunk" } } }
+        },
+        {
+          "if": { "properties": { "type": { "const": "asset_manifest" } }, "required": ["type"] },
+          "then": { "properties": { "payload": { "$ref": "#/$defs/assetManifest" } } }
+        }
+      ]
+    },
+    "checkpoint": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "throughSeq",
+        "chainHash",
+        "dialogVersion",
+        "queueRevision",
+        "entriesHash",
+        "factsHash",
+        "receiptsHash",
+        "textHash",
+        "assetManifestHash",
+        "effectsSummary",
+        "ready",
+        "capturedAt"
+      ],
+      "properties": {
+        "throughSeq": { "$ref": "#/$defs/safeInteger" },
+        "chainHash": { "$ref": "#/$defs/sha256" },
+        "dialogVersion": { "$ref": "#/$defs/positiveInteger" },
+        "queueRevision": { "$ref": "#/$defs/positiveInteger" },
+        "entriesHash": { "$ref": "#/$defs/sha256" },
+        "factsHash": { "$ref": "#/$defs/sha256" },
+        "receiptsHash": { "$ref": "#/$defs/sha256" },
+        "textHash": { "$ref": "#/$defs/sha256" },
+        "assetManifestHash": { "$ref": "#/$defs/sha256" },
+        "effectsSummary": { "$ref": "#/$defs/effectsSummary" },
+        "ready": { "type": "boolean" },
+        "incompleteReason": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "capturedAt": { "$ref": "#/$defs/timestamp" }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "ready": { "const": true } }, "required": ["ready"] },
+          "then": { "properties": { "incompleteReason": false } },
+          "else": {
+            "required": ["incompleteReason"],
+            "properties": { "incompleteReason": { "type": "string", "minLength": 1, "maxLength": 120 } }
+          }
+        }
+      ]
+    },
+    "effectsSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["entryCount", "factCount", "receiptRevisionCount", "textManifestCount", "textChunkCount", "assetManifestCount"],
+      "properties": {
+        "entryCount": { "$ref": "#/$defs/safeInteger" },
+        "factCount": { "$ref": "#/$defs/safeInteger" },
+        "receiptRevisionCount": { "$ref": "#/$defs/safeInteger" },
+        "textManifestCount": { "$ref": "#/$defs/safeInteger" },
+        "textChunkCount": { "$ref": "#/$defs/safeInteger" },
+        "assetManifestCount": { "$ref": "#/$defs/safeInteger" }
+      }
+    },
+    "streamCoverage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["streamId", "throughSeq", "chainHash", "complete", "observedAt"],
+      "properties": {
+        "streamId": { "$ref": "#/$defs/uuid" },
+        "throughSeq": { "$ref": "#/$defs/safeInteger" },
+        "chainHash": { "$ref": "#/$defs/sha256" },
+        "complete": { "type": "boolean" },
+        "observedAt": { "$ref": "#/$defs/timestamp" }
+      }
+    },
+    "exportPage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schemaId", "schemaSHA256", "streamId", "identity", "afterSeq", "records", "nextAfterSeq", "checkpoint"],
+      "properties": {
+        "schemaId": { "const": "harness-history-export-v1" },
+        "schemaSHA256": { "$ref": "#/$defs/sha256" },
+        "streamId": { "$ref": "#/$defs/uuid" },
+        "identity": { "$ref": "#/$defs/identity" },
+        "afterSeq": { "$ref": "#/$defs/safeInteger" },
+        "records": {
+          "type": "array",
+          "maxItems": 200,
+          "items": { "$ref": "#/$defs/record" }
+        },
+        "nextAfterSeq": {
+          "anyOf": [
+            { "$ref": "#/$defs/positiveInteger" },
+            { "type": "null" }
+          ]
+        },
+        "checkpoint": { "$ref": "#/$defs/checkpoint" }
+      }
+    },
+    "transcriptEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "entryId",
+        "origin",
+        "logicalDialogId",
+        "messageId",
+        "kind",
+        "role",
+        "content",
+        "createdAt",
+        "sourceGeneration",
+        "executionOrdinal",
+        "executionStatus"
+      ],
+      "properties": {
+        "entryId": { "$ref": "#/$defs/uuid" },
+        "origin": { "$ref": "#/$defs/origin" },
+        "logicalDialogId": { "$ref": "#/$defs/uuid" },
+        "messageId": { "$ref": "#/$defs/uuid" },
+        "requestId": { "$ref": "#/$defs/uuid" },
+        "attemptId": { "$ref": "#/$defs/uuid" },
+        "kind": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "role": { "enum": ["user", "assistant"] },
+        "content": { "type": "object" },
+        "createdAt": { "$ref": "#/$defs/timestamp" },
+        "profileHash": { "$ref": "#/$defs/sha256" },
+        "sourceGeneration": { "$ref": "#/$defs/safeInteger" },
+        "executionOrdinal": { "$ref": "#/$defs/positiveInteger" },
+        "executionStatus": { "type": "string", "minLength": 1, "maxLength": 120 }
+      }
+    },
+    "executionFact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["factId", "origin", "logicalDialogId", "kind", "status", "eventSeq", "occurredAt", "event"],
+      "properties": {
+        "factId": { "$ref": "#/$defs/uuid" },
+        "origin": { "$ref": "#/$defs/origin" },
+        "logicalDialogId": { "$ref": "#/$defs/uuid" },
+        "requestId": { "$ref": "#/$defs/uuid" },
+        "attemptId": { "$ref": "#/$defs/uuid" },
+        "kind": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "status": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "eventSeq": { "$ref": "#/$defs/positiveInteger" },
+        "occurredAt": { "$ref": "#/$defs/timestamp" },
+        "event": { "type": "object" }
+      }
+    },
+    "receiptRevision": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "receiptRevisionId",
+        "origin",
+        "logicalDialogId",
+        "commandId",
+        "commandKind",
+        "fingerprint",
+        "revision",
+        "predecessorHash",
+        "admission",
+        "outcome",
+        "receipt",
+        "acceptedAt"
+      ],
+      "properties": {
+        "receiptRevisionId": { "$ref": "#/$defs/uuid" },
+        "origin": { "$ref": "#/$defs/origin" },
+        "logicalDialogId": { "$ref": "#/$defs/uuid" },
+        "commandId": { "$ref": "#/$defs/uuid" },
+        "commandKind": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "fingerprint": { "$ref": "#/$defs/sha256" },
+        "requestId": { "$ref": "#/$defs/uuid" },
+        "attemptId": { "$ref": "#/$defs/uuid" },
+        "revision": { "$ref": "#/$defs/positiveInteger" },
+        "predecessorHash": { "$ref": "#/$defs/sha256" },
+        "admission": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "outcome": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "receipt": { "type": "object" },
+        "acceptedAt": { "$ref": "#/$defs/timestamp" }
+      }
+    },
+    "textManifest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "textId", "origin", "logicalDialogId", "attemptId", "source", "preview", "redaction",
+        "complete", "sizeBytes", "sha256", "chunkCount"
+      ],
+      "properties": {
+        "textId": { "$ref": "#/$defs/uuid" },
+        "origin": { "$ref": "#/$defs/origin" },
+        "logicalDialogId": { "$ref": "#/$defs/uuid" },
+        "attemptId": { "$ref": "#/$defs/uuid" },
+        "source": { "type": "object" },
+        "preview": { "type": "string", "x-utf8MaxBytes": 65536 },
+        "redaction": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "complete": { "type": "boolean" },
+        "reason": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "sizeBytes": { "$ref": "#/$defs/safeInteger" },
+        "sha256": { "$ref": "#/$defs/sha256" },
+        "chunkCount": { "$ref": "#/$defs/safeInteger" }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "complete": { "const": true } }, "required": ["complete"] },
+          "then": { "properties": { "reason": false } },
+          "else": {
+            "required": ["reason"],
+            "properties": { "reason": { "type": "string", "minLength": 1, "maxLength": 120 } }
+          }
+        }
+      ]
+    },
+    "textChunk": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["textId", "logicalDialogId", "chunkIndex", "offsetBytes", "sizeBytes", "sha256", "bytes"],
+      "properties": {
+        "textId": { "$ref": "#/$defs/uuid" },
+        "logicalDialogId": { "$ref": "#/$defs/uuid" },
+        "chunkIndex": { "$ref": "#/$defs/safeInteger" },
+        "offsetBytes": { "$ref": "#/$defs/safeInteger" },
+        "sizeBytes": { "type": "integer", "minimum": 0, "maximum": 1048576 },
+        "sha256": { "$ref": "#/$defs/sha256" },
+        "bytes": { "type": "string" }
+      }
+    },
+    "asset": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["artifactId", "attemptId", "name", "mediaType", "sizeBytes", "sha256", "redaction", "truncated"],
+      "properties": {
+        "artifactId": { "$ref": "#/$defs/uuid" },
+        "attemptId": { "$ref": "#/$defs/uuid" },
+        "callId": { "$ref": "#/$defs/uuid" },
+        "name": { "type": "string", "minLength": 1, "maxLength": 512 },
+        "mediaType": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "sizeBytes": { "$ref": "#/$defs/safeInteger" },
+        "sha256": { "$ref": "#/$defs/sha256" },
+        "redaction": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "truncated": { "type": "boolean" }
+      }
+    },
+    "assetManifest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["logicalDialogId", "assets"],
+      "properties": {
+        "logicalDialogId": { "$ref": "#/$defs/uuid" },
+        "assets": { "type": "array", "maxItems": 40000, "items": { "$ref": "#/$defs/asset" } }
+      }
+    },
+    "importResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schemaId", "streamId", "importedThrough", "sourceThrough", "duplicate", "complete", "observedAt"],
+      "properties": {
+        "schemaId": { "const": "harness-history-export-v1" },
+        "streamId": { "$ref": "#/$defs/uuid" },
+        "importedThrough": { "$ref": "#/$defs/safeInteger" },
+        "sourceThrough": { "$ref": "#/$defs/safeInteger" },
+        "duplicate": { "type": "boolean" },
+        "complete": { "type": "boolean" },
+        "observedAt": { "$ref": "#/$defs/timestamp" }
+      }
+    },
+    "receiptLookup": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schemaId", "receipt", "checkpoint"],
+      "properties": {
+        "schemaId": { "const": "history-origin-receipt-v1" },
+        "receipt": { "$ref": "#/$defs/receiptRevision" },
+        "checkpoint": { "$ref": "#/$defs/checkpoint" }
+      }
+    },
+    "readPage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaId",
+        "logicalDialogId",
+        "entries",
+        "facts",
+        "receipts",
+        "nextCursor",
+        "syncedThrough",
+        "streamCoverage",
+        "observedAt",
+        "lagMillis",
+        "incomplete"
+      ],
+      "properties": {
+        "schemaId": { "const": "history-replica-read-v1" },
+        "logicalDialogId": { "$ref": "#/$defs/uuid" },
+        "entries": { "type": "array", "maxItems": 200, "items": { "$ref": "#/$defs/transcriptEntry" } },
+        "facts": { "type": "array", "maxItems": 200, "items": { "$ref": "#/$defs/executionFact" } },
+        "receipts": { "type": "array", "maxItems": 200, "items": { "$ref": "#/$defs/receiptRevision" } },
+        "nextCursor": {
+          "anyOf": [
+            { "type": "string", "minLength": 1, "maxLength": 8192 },
+            { "type": "null" }
+          ]
+        },
+        "syncedThrough": { "$ref": "#/$defs/checkpoint" },
+        "streamCoverage": { "type": "array", "minItems": 1, "maxItems": 24, "items": { "$ref": "#/$defs/streamCoverage" } },
+        "observedAt": { "$ref": "#/$defs/timestamp" },
+        "lagMillis": { "$ref": "#/$defs/safeInteger" },
+        "incomplete": { "type": "boolean" }
+      }
+    }
+  }
+}

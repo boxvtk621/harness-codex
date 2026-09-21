@@ -1,0 +1,11 @@
+{
+  "name": "hl258-codex-app-server-runtime",
+  "version": "0.1.0",
+  "private": true,
+  "engines": {
+    "node": ">=22.13"
+  },
+  "dependencies": {
+    "@openai/codex": "0.153.4"
+  }
+}

@@ -1,0 +1,94 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://homelab.invalid/contracts/harness-barrier-v1.schema.json",
+  "title": "Harness administrative barrier v1",
+  "oneOf": [
+    { "$ref": "#/$defs/installRequest" },
+    { "$ref": "#/$defs/holdReceipt" },
+    { "$ref": "#/$defs/rejectionReceipt" },
+    { "$ref": "#/$defs/quiescenceProof" },
+    { "$ref": "#/$defs/releaseRequest" },
+    { "$ref": "#/$defs/releaseReceipt" }
+  ],
+  "$defs": {
+    "uuid": { "type": "string", "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$" },
+    "operationId": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@-]{0,127}$" },
+    "scope": {
+      "oneOf": [
+        { "type": "object", "additionalProperties": false, "required": ["kind"], "properties": { "kind": { "const": "node" } } },
+        { "type": "object", "additionalProperties": false, "required": ["kind", "dialogId"], "properties": { "kind": { "const": "dialog" }, "dialogId": { "$ref": "#/$defs/uuid" } } }
+      ]
+    },
+    "installRequest": {
+      "type": "object", "additionalProperties": false,
+      "required": ["protocolVersion", "schemaId", "operationId", "nodeId", "expectedEpoch", "bindingGeneration", "scope", "expectedScopeRevision"],
+      "properties": {
+        "protocolVersion": { "const": 1 }, "schemaId": { "const": "harness-barrier-v1" },
+        "operationId": { "$ref": "#/$defs/operationId" }, "nodeId": { "$ref": "#/$defs/uuid" },
+        "expectedEpoch": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 }, "bindingGeneration": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 },
+        "scope": { "$ref": "#/$defs/scope" }, "expectedScopeRevision": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 }
+      }
+    },
+    "holdReceipt": {
+      "type": "object", "additionalProperties": false,
+      "required": ["protocolVersion", "schemaId", "kind", "operationId", "receiptId", "nodeId", "epoch", "bindingGeneration", "scope", "holdVersion", "scopeRevision", "installedAt"],
+      "properties": {
+        "protocolVersion": { "const": 1 }, "schemaId": { "const": "harness-barrier-v1" }, "kind": { "const": "hold.installed" },
+        "operationId": { "$ref": "#/$defs/operationId" }, "receiptId": { "$ref": "#/$defs/uuid" }, "nodeId": { "$ref": "#/$defs/uuid" },
+        "epoch": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 }, "bindingGeneration": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 },
+        "scope": { "$ref": "#/$defs/scope" }, "holdVersion": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 },
+        "scopeRevision": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 }, "installedAt": { "type": "string", "format": "date-time" }
+      }
+    },
+    "rejectionReceipt": {
+      "type": "object", "additionalProperties": false,
+      "required": ["protocolVersion", "schemaId", "kind", "commandId", "commandKind", "receiptId", "nodeId", "epoch", "canonicalPayloadHash", "rejectedAt", "reason", "holdOperationId", "holdVersion", "scope", "scopeRevision"],
+      "properties": {
+        "protocolVersion": { "const": 1 }, "schemaId": { "const": "harness-barrier-v1" }, "kind": { "const": "command.rejected" },
+        "commandId": { "$ref": "#/$defs/uuid" },
+        "commandKind": { "enum": ["dialog.create", "dialog.delete", "message.enqueue", "queue.resume", "attempt.retry"] },
+        "receiptId": { "$ref": "#/$defs/uuid" }, "nodeId": { "$ref": "#/$defs/uuid" }, "epoch": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 },
+        "canonicalPayloadHash": { "type": "string", "pattern": "^[0-9a-f]{64}$" }, "rejectedAt": { "type": "string", "format": "date-time" },
+        "reason": { "const": "administrative_hold" }, "holdOperationId": { "$ref": "#/$defs/operationId" },
+        "holdVersion": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 }, "scope": { "$ref": "#/$defs/scope" }, "scopeRevision": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 }
+      }
+    },
+    "quiescenceProof": {
+      "type": "object", "additionalProperties": false,
+      "required": ["protocolVersion", "schemaId", "kind", "operationId", "nodeId", "epoch", "bindingGeneration", "scope", "holdVersion", "scopeRevision", "stateVersion", "queueRevision", "parkedRequestIdsDigest", "checkpointStreamId", "checkpointSeq", "active", "effectStatus", "unsettledCount", "proofHash"],
+      "properties": {
+        "protocolVersion": { "const": 1 }, "schemaId": { "const": "harness-barrier-v1" }, "kind": { "const": "scope.parked" },
+        "operationId": { "$ref": "#/$defs/operationId" }, "nodeId": { "$ref": "#/$defs/uuid" },
+        "epoch": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 }, "bindingGeneration": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 },
+        "scope": { "$ref": "#/$defs/scope" }, "holdVersion": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 },
+        "scopeRevision": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 },
+        "stateVersion": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 }, "queueRevision": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 },
+        "parkedRequestIdsDigest": { "type": "string", "pattern": "^[0-9a-f]{64}$" }, "checkpointStreamId": { "$ref": "#/$defs/uuid" },
+        "checkpointSeq": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 }, "active": { "type": "null" },
+        "effectStatus": { "const": "known" }, "unsettledCount": { "const": 0 }, "proofHash": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+      }
+    },
+    "releaseRequest": {
+      "type": "object", "additionalProperties": false,
+      "required": ["protocolVersion", "schemaId", "operationId", "nodeId", "expectedEpoch", "bindingGeneration", "scope", "holdVersion", "expectedScopeRevision", "action"],
+      "properties": {
+        "protocolVersion": { "const": 1 }, "schemaId": { "const": "harness-barrier-v1" },
+        "operationId": { "$ref": "#/$defs/operationId" }, "nodeId": { "$ref": "#/$defs/uuid" },
+        "expectedEpoch": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 }, "bindingGeneration": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 },
+        "scope": { "$ref": "#/$defs/scope" }, "holdVersion": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 },
+        "expectedScopeRevision": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 }, "action": { "enum": ["release", "cancel"] }
+      }
+    },
+    "releaseReceipt": {
+      "type": "object", "additionalProperties": false,
+      "required": ["protocolVersion", "schemaId", "kind", "operationId", "receiptId", "nodeId", "epoch", "bindingGeneration", "scope", "holdVersion", "scopeRevision", "manualPause", "releasedAt"],
+      "properties": {
+        "protocolVersion": { "const": 1 }, "schemaId": { "const": "harness-barrier-v1" }, "kind": { "enum": ["hold.released", "hold.cancelled"] },
+        "operationId": { "$ref": "#/$defs/operationId" }, "receiptId": { "$ref": "#/$defs/uuid" }, "nodeId": { "$ref": "#/$defs/uuid" },
+        "epoch": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 }, "bindingGeneration": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 },
+        "scope": { "$ref": "#/$defs/scope" }, "holdVersion": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 },
+        "scopeRevision": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 }, "manualPause": { "type": "boolean" }, "releasedAt": { "type": "string", "format": "date-time" }
+      }
+    }
+  }
+}
