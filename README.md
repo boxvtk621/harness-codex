@@ -42,4 +42,4 @@ With `--container`, the generated private files intentionally remain owner-only.
 
 The image runs as UID/GID `10001:10001`; production launches must keep a read-only root filesystem, no network, all capabilities dropped, `no-new-privileges`, bounded CPU/memory/PIDs, a bounded `rw,noexec,nosuid` tmpfs at `/tmp`, and separate `/config`, `/state`, `/auth`, `/workspace` mounts. The private API requires TLS 1.3 and exact, distinct gateway/operator certificate SHA-256 pins.
 
-The versioned wire contract is documented in [`docs/harness-v1.md`](docs/harness-v1.md). Source extraction provenance is recorded in `provenance/source-manifest.csv`.
+The versioned wire contract is documented in [`docs/harness-v1.md`](docs/harness-v1.md). Source extraction provenance is recorded in `provenance/source-manifest.csv`; hashes use canonical Git bytes so verification is independent of checkout line-ending conversion.

@@ -36,6 +36,36 @@ def git_bytes(source, path):
     return subprocess.run(command, check=True, capture_output=True).stdout
 
 
+def destination_bytes(path):
+    """Return canonical repository bytes while still detecting real worktree edits."""
+    relative = path.relative_to(ROOT).as_posix()
+    tracked = subprocess.run(
+        ["git", "-C", str(ROOT), "ls-files", "--error-unmatch", "--", relative],
+        capture_output=True,
+    )
+    if tracked.returncode != 0:
+        return path.read_bytes()
+
+    worktree_clean = subprocess.run(
+        ["git", "-C", str(ROOT), "diff", "--quiet", "--", relative],
+        capture_output=True,
+    )
+    if worktree_clean.returncode != 0:
+        return path.read_bytes()
+
+    index_changed = subprocess.run(
+        ["git", "-C", str(ROOT), "diff", "--cached", "--quiet", "--", relative],
+        capture_output=True,
+    )
+    revision = f":{relative}" if index_changed.returncode == 1 else f"HEAD:{relative}"
+    result = subprocess.run(
+        ["git", "-C", str(ROOT), "show", revision],
+        check=False,
+        capture_output=True,
+    )
+    return result.stdout if result.returncode == 0 else path.read_bytes()
+
+
 def destination_map():
     result = {}
     roots = {
@@ -82,16 +112,16 @@ def destination_map():
 def write_manifest(source):
     rows = []
     for destination, source_path in sorted(destination_map().items()):
-        destination_bytes = (ROOT / destination).read_bytes()
+        transferred_bytes = destination_bytes(ROOT / destination)
         source_bytes = git_bytes(source, source_path)
         rows.append({
-            "status": "included" if source_bytes == destination_bytes else "adapted",
+            "status": "included" if source_bytes == transferred_bytes else "adapted",
             "source_commit": SOURCE_COMMIT,
             "source_path": source_path,
             "destination_path": destination,
             "source_sha256": digest(source_bytes),
-            "destination_sha256": digest(destination_bytes),
-            "rationale": "byte-identical transfer" if source_bytes == destination_bytes else "standalone path/module/provider adaptation",
+            "destination_sha256": digest(transferred_bytes),
+            "rationale": "byte-identical transfer" if source_bytes == transferred_bytes else "standalone path/module/provider adaptation",
         })
     for path, reason in EXCLUSIONS:
         rows.append({"status": "excluded", "source_commit": SOURCE_COMMIT, "source_path": path,
@@ -132,7 +162,7 @@ def verify(source):
             continue
         mapped[destination] = row["source_path"]
         path = ROOT / destination
-        if not path.is_file() or digest(path.read_bytes()) != row["destination_sha256"]:
+        if not path.is_file() or digest(destination_bytes(path)) != row["destination_sha256"]:
             failures.append(f"destination digest mismatch: {destination}")
         if source is not None:
             try:

@@ -5,6 +5,7 @@ import csv
 import hashlib
 import importlib.util
 from pathlib import Path
+import subprocess
 import tempfile
 import unittest
 from unittest import mock
@@ -67,6 +68,22 @@ class ProvenanceVerificationTest(unittest.TestCase):
         self.write(self.rows[:1])
         with self.assertRaisesRegex(SystemExit, "missing exclusion"):
             self.verify()
+
+    def test_destination_bytes_uses_canonical_git_content_for_clean_checkout(self):
+        repository = self.root / "repository"
+        repository.mkdir()
+        subprocess.run(["git", "init"], cwd=repository, check=True, capture_output=True)
+        subprocess.run(["git", "config", "user.name", "test"], cwd=repository, check=True)
+        subprocess.run(["git", "config", "user.email", "test@example.invalid"], cwd=repository, check=True)
+        subprocess.run(["git", "config", "core.autocrlf", "true"], cwd=repository, check=True)
+        item = repository / "item.txt"
+        item.write_bytes(b"canonical\n")
+        subprocess.run(["git", "add", "item.txt"], cwd=repository, check=True)
+        subprocess.run(["git", "commit", "-m", "fixture"], cwd=repository, check=True, capture_output=True)
+        item.write_bytes(b"canonical\r\n")
+
+        with mock.patch.object(PROVENANCE, "ROOT", repository):
+            self.assertEqual(PROVENANCE.destination_bytes(item), b"canonical\n")
 
 
 if __name__ == "__main__":
