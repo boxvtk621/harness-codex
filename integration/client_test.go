@@ -41,29 +41,17 @@ type binaryResponse struct {
 }
 
 // testAPIClient is intentionally local to the producer repository. It proves
-// the private mTLS/pinned-peer wire without importing a Panel/Router consumer.
+// the private TLS wire without importing a Panel/Router consumer.
 type testAPIClient struct {
 	baseURL string
 	nodeID  string
 	client  *http.Client
 }
 
-func newTestAPIClient(baseURL, nodeID string, roots *x509.CertPool, serverCert, clientCert tls.Certificate) *testAPIClient {
-	wantPin := sha256.Sum256(serverCert.Certificate[0])
+func newTestAPIClient(baseURL, nodeID string, roots *x509.CertPool) *testAPIClient {
 	tlsConfig := &tls.Config{
-		MinVersion:   tls.VersionTLS13,
-		RootCAs:      roots,
-		Certificates: []tls.Certificate{clientCert},
-		VerifyConnection: func(state tls.ConnectionState) error {
-			if len(state.PeerCertificates) == 0 {
-				return fmt.Errorf("missing peer certificate")
-			}
-			got := sha256.Sum256(state.PeerCertificates[0].Raw)
-			if !bytes.Equal(got[:], wantPin[:]) {
-				return fmt.Errorf("server certificate pin mismatch")
-			}
-			return nil
-		},
+		MinVersion: tls.VersionTLS13,
+		RootCAs:    roots,
 	}
 	transport := &http.Transport{TLSClientConfig: tlsConfig, DisableCompression: true}
 	return &testAPIClient{
@@ -75,12 +63,11 @@ func newTestAPIClient(baseURL, nodeID string, roots *x509.CertPool, serverCert, 
 
 func (c *testAPIClient) Close() { c.client.CloseIdleConnections() }
 
-func (c *testAPIClient) request(ctx context.Context, method, path, owner, accept, byteRange string, body []byte) (*http.Response, error) {
+func (c *testAPIClient) request(ctx context.Context, method, path, _ string, accept, byteRange string, body []byte) (*http.Response, error) {
 	request, err := http.NewRequestWithContext(ctx, method, c.baseURL+path, bytes.NewReader(body))
 	if err != nil {
 		return nil, err
 	}
-	request.Header.Set("X-Harness-Actor-ID", owner)
 	request.Header.Set("Accept", accept)
 	if byteRange != "" {
 		request.Header.Set("Range", byteRange)

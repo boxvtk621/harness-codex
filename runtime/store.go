@@ -42,6 +42,9 @@ type Node struct {
 	runtime        RuntimeInfo
 	identity       harnessadapter.Identity
 	startedAt      string
+	bootID         string
+	heartbeatMu    sync.RWMutex
+	heartbeatAt    string
 	actions        chan struct{}
 	stop           context.CancelFunc
 	done           chan struct{}
@@ -108,8 +111,17 @@ func Open(ctx context.Context, config Config) (*Node, error) {
 	}
 	db.SetMaxOpenConns(1)
 	db.SetMaxIdleConns(1)
+	bootID, err := (randomIDs{}).NewID()
+	if err != nil {
+		_ = db.Close()
+		cleanupOwnedFile(reserveCreated)
+		cleanupFreshVolume(databaseCreated)
+		_ = unlock(lock)
+		return nil, fmt.Errorf("boot identity: %w", err)
+	}
 	workerContext, stop := context.WithCancel(context.Background())
-	node := &Node{config: config, db: db, lock: lock, identity: identity, startedAt: timestamp(config.Clock()), actions: make(chan struct{}, 1), stop: stop, done: make(chan struct{})}
+	startedAt := timestamp(config.Clock())
+	node := &Node{config: config, db: db, lock: lock, identity: identity, startedAt: startedAt, bootID: bootID, heartbeatAt: startedAt, actions: make(chan struct{}, 1), stop: stop, done: make(chan struct{})}
 	if err := node.initialize(ctx, databaseCreated.valid); err != nil {
 		stop()
 		_ = db.Close()

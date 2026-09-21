@@ -27,17 +27,15 @@ request, attempt, tool call, approval, input request, artifact, and event
 entities. Native Cursor agent/run IDs and Codex thread/turn IDs remain inside an
 adapter implementation and never enter the wire contract.
 
-The browser command has no `actorId`. Gateway derives the actor from its
-authenticated server session, strips any browser-supplied actor header, and sets
-`X-Harness-Actor-ID` only on its authenticated mTLS request to Harness.
-That identity is a bounded opaque string (`1-1` is valid); it is not a Harness
-UUID and no synthetic user mapping is required. A foreign object is returned as
-`not_found`, so object existence is not disclosed.
+The browser command has no `actorId`. Harness is private-network-only and does
+not accept caller identity, mTLS client certificates, peer pins, or actor
+headers. Persisted owner metadata remains historical namespace data; it is not
+an authorization decision.
 
 ## Commands and durable receipts
 
 All mutations use `POST /v1/nodes/{nodeId}/commands`. URL node ID, command target,
-registry identity, and mTLS peer identity must agree. The ten command variants
+registry identity and expected adapter identity must agree. The ten command variants
 are closed:
 
 | Kind | Target | Expected CAS | Payload | Receipt references |

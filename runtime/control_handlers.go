@@ -157,11 +157,11 @@ func (node *Node) applyApproval(ctx context.Context, tx *sql.Tx, state *durableS
 	if version != expected.ApprovalVersion || generation != expected.AttemptGeneration || status != "pending" || actionHash != payload.ActionHash {
 		return nil, "", "", postCommitAction{}, stale(version, status)
 	}
-	if _, err := tx.ExecContext(ctx, "UPDATE approvals SET version=version+1,status='responding',decision=?,actor_id=? WHERE approval_id=?", payload.Decision, trust.ActorID, target.ApprovalID); err != nil {
+	if _, err := tx.ExecContext(ctx, "UPDATE approvals SET version=version+1,status='responding',decision=?,actor_id=? WHERE approval_id=?", payload.Decision, node.config.OwnerID, target.ApprovalID); err != nil {
 		return nil, "", "", postCommitAction{}, err
 	}
 	return harnessprotocol.ApprovalRespondReferences{ApprovalID: target.ApprovalID, AttemptID: target.AttemptID}, "admitted", "", postCommitAction{
-		kind: string(envelope.Kind), attemptID: target.AttemptID, actorID: trust.ActorID,
+		kind: string(envelope.Kind), attemptID: target.AttemptID, actorID: node.config.OwnerID,
 		payload: mustJSON(map[string]any{"generation": generation, "dialogId": dialogID, "requestId": requestID, "approvalId": target.ApprovalID, "approvalVersion": version + 1, "callId": callID, "actionHash": actionHash, "decision": payload.Decision}),
 	}, nil
 }
@@ -194,7 +194,7 @@ func (node *Node) applyInput(ctx context.Context, tx *sql.Tx, state *durableStat
 	}
 	state.NextMessageSequence++
 	return harnessprotocol.InputRespondReferences{InputRequestID: target.InputRequestID, AttemptID: target.AttemptID, MessageID: messageID}, "admitted", "", postCommitAction{
-		kind: string(envelope.Kind), attemptID: target.AttemptID, messageID: messageID, actorID: trust.ActorID,
+		kind: string(envelope.Kind), attemptID: target.AttemptID, messageID: messageID, actorID: node.config.OwnerID,
 		payload: mustJSON(map[string]any{"generation": generation, "dialogId": dialogID, "requestId": requestID, "inputRequestId": target.InputRequestID, "inputVersion": version + 1, "text": payload.Text}),
 	}, nil
 }

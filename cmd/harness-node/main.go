@@ -5,7 +5,6 @@ import (
 	"context"
 	"crypto/sha256"
 	"crypto/tls"
-	"crypto/x509"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -35,22 +34,20 @@ const (
 )
 
 type config struct {
-	Listen                    string       `json:"listen"`
-	NodeID                    string       `json:"nodeId"`
-	OwnerID                   string       `json:"ownerId"`
-	DataDir                   string       `json:"dataDir"`
-	RegistryVersion           int64        `json:"registryVersion"`
-	CertificateFile           string       `json:"certificateFile"`
-	KeyFile                   string       `json:"keyFile"`
-	ClientCAFile              string       `json:"clientCAFile"`
-	GatewayCertificateSHA256  string       `json:"gatewayCertificateSHA256"`
-	OperatorCertificateSHA256 string       `json:"operatorCertificateSHA256"`
-	PolicyFile                string       `json:"policyFile"`
-	ToolManifestFile          string       `json:"toolManifestFile"`
-	PolicyRevision            string       `json:"policyRevision"`
-	ApprovalMode              string       `json:"approvalMode,omitempty"`
-	Adapter                   string       `json:"adapter"`
-	Codex                     *codexConfig `json:"codex,omitempty"`
+	Listen                   string       `json:"listen"`
+	NodeID                   string       `json:"nodeId"`
+	OwnerID                  string       `json:"ownerId"`
+	DataDir                  string       `json:"dataDir"`
+	RegistryVersion          int64        `json:"registryVersion"`
+	CertificateFile          string       `json:"certificateFile"`
+	KeyFile                  string       `json:"keyFile"`
+	PolicyFile               string       `json:"policyFile"`
+	ToolManifestFile         string       `json:"toolManifestFile"`
+	PolicyRevision           string       `json:"policyRevision"`
+	ApprovalMode             string       `json:"approvalMode,omitempty"`
+	ManualDispatchForTesting bool         `json:"manualDispatchForTesting,omitempty"`
+	Adapter                  string       `json:"adapter"`
+	Codex                    *codexConfig `json:"codex,omitempty"`
 }
 
 type codexConfig struct {
@@ -258,9 +255,6 @@ func serve(ctx context.Context, path string) error {
 	if err := validateProviderSelection(cfg); err != nil {
 		return err
 	}
-	if err := validatePeerPins(cfg.GatewayCertificateSHA256, cfg.OperatorCertificateSHA256); err != nil {
-		return err
-	}
 	host, port, err := net.SplitHostPort(cfg.Listen)
 	if err != nil || net.ParseIP(host) == nil || port == "" {
 		return errors.New("explicit listen IP and port required")
@@ -268,14 +262,6 @@ func serve(ctx context.Context, path string) error {
 	certificate, err := tls.LoadX509KeyPair(cfg.CertificateFile, cfg.KeyFile)
 	if err != nil {
 		return err
-	}
-	caPEM, err := boundedFile(cfg.ClientCAFile, 64<<10)
-	if err != nil {
-		return err
-	}
-	roots := x509.NewCertPool()
-	if !roots.AppendCertsFromPEM(caPEM) {
-		return errors.New("client CA is invalid")
 	}
 	adapterKind := selectedAdapter(cfg)
 	policies := filePolicy{contentPath: cfg.PolicyFile, manifestPath: cfg.ToolManifestFile, revision: cfg.PolicyRevision, approvalMode: cfg.ApprovalMode, adapter: adapterKind}
@@ -292,15 +278,13 @@ func serve(ctx context.Context, path string) error {
 	authority, err := runtime.Open(ctx, runtime.Config{
 		DataDir: cfg.DataDir, NodeID: cfg.NodeID, OwnerID: cfg.OwnerID,
 		RegistryVersion: cfg.RegistryVersion, Adapter: adapter, Policies: policies, Artifacts: artifacts,
+		ManualDispatchForTesting: cfg.ManualDispatchForTesting,
 	})
 	if err != nil {
 		return err
 	}
 	defer authority.Close()
-	handler, err := harnessserver.New(harnessserver.Config{
-		NodeID: cfg.NodeID, GatewayCertificateSHA256: cfg.GatewayCertificateSHA256,
-		OperatorCertificateSHA256: cfg.OperatorCertificateSHA256,
-	}, authority)
+	handler, err := harnessserver.New(harnessserver.Config{NodeID: cfg.NodeID}, authority)
 	if err != nil {
 		return err
 	}
@@ -310,8 +294,7 @@ func serve(ctx context.Context, path string) error {
 		IdleTimeout: 30 * time.Second, MaxHeaderBytes: 16 << 10,
 		// SSE outlives individual HTTP commands and can span long agent runs.
 		WriteTimeout: 0, ErrorLog: log.New(io.Discard, "", 0),
-		TLSConfig: &tls.Config{MinVersion: tls.VersionTLS13, Certificates: []tls.Certificate{certificate},
-			ClientCAs: roots, ClientAuth: tls.RequireAndVerifyClientCert},
+		TLSConfig: &tls.Config{MinVersion: tls.VersionTLS13, Certificates: []tls.Certificate{certificate}},
 	}
 	done := make(chan struct{})
 	defer close(done)
@@ -332,13 +315,6 @@ func serve(ctx context.Context, path string) error {
 		return nil
 	}
 	return err
-}
-
-func validatePeerPins(gateway, operator string) error {
-	if operator == "" || strings.EqualFold(operator, gateway) {
-		return errors.New("distinct execution and operator certificate pins are required")
-	}
-	return nil
 }
 
 func recoverCompletedApprovalRace(ctx context.Context, path string, flags approvalRaceFlags) error {
@@ -491,7 +467,18 @@ func validateProviderSelection(cfg config) error {
 	if selectedAdapter(cfg) != string(harnessadapter.KindCodex) || cfg.Codex == nil {
 		return errors.New("exactly one Codex adapter config is required")
 	}
+	if cfg.ManualDispatchForTesting &&
+		(cfg.PolicyRevision != "hl304-fixture@1" || effectiveApprovalMode(cfg.ApprovalMode) != harnessadapter.ApprovalModeDeny || cfg.Codex.Model != "fixture-no-provider-call") {
+		return errors.New("manual dispatch is restricted to the HL-304 no-provider fixture")
+	}
 	return nil
+}
+
+func effectiveApprovalMode(mode string) string {
+	if mode == "" {
+		return harnessadapter.ApprovalModeDeny
+	}
+	return mode
 }
 
 type filePolicy struct {

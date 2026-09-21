@@ -1,0 +1,2 @@
+api/*.json text eol=lf
+scripts/*.py text eol=lf

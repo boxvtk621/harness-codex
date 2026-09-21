@@ -15,13 +15,10 @@ import (
 	"github.com/boxvtk621/harness-codex/internal/harnessprotocol"
 )
 
-// OperatorTrustContext is intentionally separate from the browser command
-// TrustContext. R06 may expose this seam through an authenticated administrative
-// endpoint; R05 only establishes the node-side authority.
+// OperatorTrustContext is separate from command routing so administrative
+// operations cannot accidentally share command-specific fencing state.
 type OperatorTrustContext struct {
-	ActorID         string
 	TransportNodeID string
-	PeerVerified    bool
 }
 
 type durableHold struct {
@@ -89,9 +86,6 @@ func CanonicalReleaseRequest(raw []byte) ([]byte, string, error) {
 // barrier. startGate is acquired before mu so the commit cannot overtake an
 // Adapter.Start/Resume call that has already crossed its final gate.
 func (node *Node) InstallHold(ctx context.Context, trust OperatorTrustContext, raw []byte) Result {
-	if !trust.PeerVerified || trust.ActorID == "" || trust.ActorID != node.config.OwnerID {
-		return node.errorResult(http.StatusForbidden, "forbidden", "trusted operator is not allowed", "", nil, "")
-	}
 	if trust.TransportNodeID != node.config.NodeID {
 		return node.errorResult(http.StatusNotFound, "not_found", "node was not found", "", nil, "")
 	}
@@ -230,9 +224,6 @@ func (node *Node) InstallHold(ctx context.Context, trust OperatorTrustContext, r
 }
 
 func (node *Node) HoldStatus(ctx context.Context, trust OperatorTrustContext, operationID string) Result {
-	if !trust.PeerVerified || trust.ActorID == "" || trust.ActorID != node.config.OwnerID {
-		return node.errorResult(http.StatusForbidden, "forbidden", "trusted operator is not allowed", "", nil, "")
-	}
 	if trust.TransportNodeID != node.config.NodeID {
 		return node.errorResult(http.StatusNotFound, "not_found", "node was not found", "", nil, "")
 	}
@@ -258,9 +249,6 @@ func (node *Node) HoldStatus(ctx context.Context, trust OperatorTrustContext, op
 // hold is active and every effect and owning control inside its scope is
 // settled. It deliberately has no timeout path: unknown remains unknown.
 func (node *Node) QuiescenceProof(ctx context.Context, trust OperatorTrustContext, operationID string) Result {
-	if !trust.PeerVerified || trust.ActorID == "" || trust.ActorID != node.config.OwnerID {
-		return node.errorResult(http.StatusForbidden, "forbidden", "trusted operator is not allowed", "", nil, "")
-	}
 	if trust.TransportNodeID != node.config.NodeID {
 		return node.errorResult(http.StatusNotFound, "not_found", "node was not found", "", nil, "")
 	}
@@ -402,9 +390,6 @@ func validBarrierOperationID(value string) bool {
 // ReleaseHold releases only the hold named by operationId. The durable manual
 // pause flag is read but never mutated, including on cancel/abort paths.
 func (node *Node) ReleaseHold(ctx context.Context, trust OperatorTrustContext, raw []byte) Result {
-	if !trust.PeerVerified || trust.ActorID == "" || trust.ActorID != node.config.OwnerID {
-		return node.errorResult(http.StatusForbidden, "forbidden", "trusted operator is not allowed", "", nil, "")
-	}
 	if trust.TransportNodeID != node.config.NodeID {
 		return node.errorResult(http.StatusNotFound, "not_found", "node was not found", "", nil, "")
 	}
@@ -608,7 +593,7 @@ func (node *Node) commitCommandRejection(ctx context.Context, tx *sql.Tx, state 
 	}
 	if _, err := tx.ExecContext(ctx, `INSERT INTO command_rejections(
 		command_id,actor_id,node_id,kind,canonical_json,canonical_payload_hash,receipt_json,http_status,rejected_at,hold_operation_id)
-		VALUES(?,?,?,?,?,?,?,?,?,?)`, envelope.CommandID, trust.ActorID, state.NodeID, envelope.Kind, canonical, digest,
+		VALUES(?,?,?,?,?,?,?,?,?,?)`, envelope.CommandID, node.config.OwnerID, state.NodeID, envelope.Kind, canonical, digest,
 		receiptJSON, http.StatusConflict, rejectedAt, hold.OperationID); err != nil {
 		return node.errorResult(http.StatusServiceUnavailable, "not_durable", "rejection commit failed", envelope.CommandID, nil, "")
 	}

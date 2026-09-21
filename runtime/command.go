@@ -39,12 +39,9 @@ type postCommitAction struct {
 }
 
 // SubmitCommand is the only durable command admission entry point. TrustContext
-// is constructed by the authenticated mTLS HTTP boundary, never from JSON.
+// carries routing and fencing data only, never caller identity.
 func (node *Node) SubmitCommand(ctx context.Context, trust TrustContext, raw []byte) Result {
 	correlation := bestEffortCommandID(raw)
-	if !trust.PeerVerified || trust.ActorID == "" || trust.ActorID != node.config.OwnerID {
-		return node.errorResult(http.StatusForbidden, "forbidden", "trusted actor is not allowed", correlation, nil, "")
-	}
 	if trust.TransportNodeID != node.config.NodeID {
 		return node.errorResult(http.StatusNotFound, "not_found", "node was not found", correlation, nil, "")
 	}
@@ -160,7 +157,7 @@ func (node *Node) SubmitCommand(ctx context.Context, trust TrustContext, raw []b
 		}
 	}
 	if _, err := tx.ExecContext(ctx, `INSERT INTO commands(command_id,actor_id,node_id,kind,canonical_json,canonical_payload_hash,receipt_json,accepted_at,event_seq)
-		VALUES(?,?,?,?,?,?,?,?,?)`, envelope.CommandID, trust.ActorID, node.config.NodeID, envelope.Kind, canonical, digest, receiptJSON, receipt.AcceptedAt, receipt.EventSeq); err != nil {
+		VALUES(?,?,?,?,?,?,?,?,?)`, envelope.CommandID, node.config.OwnerID, node.config.NodeID, envelope.Kind, canonical, digest, receiptJSON, receipt.AcceptedAt, receipt.EventSeq); err != nil {
 		return node.errorResult(http.StatusServiceUnavailable, "not_durable", "command commit failed", correlation, nil, "")
 	}
 	if err := saveState(ctx, tx, state); err != nil {

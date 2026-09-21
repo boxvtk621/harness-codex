@@ -303,7 +303,7 @@ func TestAuthoritativeScenariosExecute(t *testing.T) {
 			}
 			before := projection(t, opened)
 			if scenario.Operation.Type == "command" {
-				result := opened.SubmitCommand(context.Background(), TrustContext{ActorID: scenario.Given.ActorID, TransportNodeID: scenario.Given.TransportNodeID, PeerVerified: true}, scenario.Operation.Value)
+				result := opened.SubmitCommand(context.Background(), TrustContext{TransportNodeID: scenario.Given.TransportNodeID}, scenario.Operation.Value)
 				if result.HTTPStatus != scenario.Expect.HTTPStatus {
 					t.Fatalf("status=%d want=%d body=%s", result.HTTPStatus, scenario.Expect.HTTPStatus, result.Body)
 				}
@@ -451,7 +451,7 @@ func TestAuthoritativeScenariosExecute(t *testing.T) {
 				}
 			}
 			if want := scenario.Expect.AfterReadinessRefresh; want != nil {
-				trust := TrustContext{ActorID: scenario.Given.ActorID, TransportNodeID: scenario.Given.TransportNodeID, PeerVerified: true}
+				trust := TrustContext{TransportNodeID: scenario.Given.TransportNodeID}
 				ready := opened.HealthReady(context.Background(), trust)
 				var health harnessprotocol.HealthReady
 				if ready.HTTPStatus != 200 || json.Unmarshal(ready.Body, &health) != nil || !slices.Contains(health.BlockedReasons, want.StillBlockedBy) {

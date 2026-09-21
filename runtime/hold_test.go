@@ -20,7 +20,7 @@ import (
 )
 
 func operatorTrust() node.OperatorTrustContext {
-	return node.OperatorTrustContext{ActorID: testOwnerID, TransportNodeID: testNodeID, PeerVerified: true}
+	return node.OperatorTrustContext{TransportNodeID: testNodeID}
 }
 
 func holdRequest(t *testing.T, operationID string, scope harnessbarrier.Scope, epoch, scopeRevision int64) []byte {

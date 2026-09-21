@@ -70,18 +70,17 @@ func TestArtifactThroughPrivateAPIClientRejectsLostOrCorruptedBytes(t *testing.T
 		t.Fatal("stored artifact metadata lost bytes or ownership")
 	}
 
-	roots, serverCert, clientCert := transportCertificates(t)
-	pin := sha256.Sum256(clientCert.Certificate[0])
-	handler, err := server.New(server.Config{NodeID: integrationNode, GatewayCertificateSHA256: hex.EncodeToString(pin[:])}, n)
+	roots, serverCert := transportCertificates(t)
+	handler, err := server.New(server.Config{NodeID: integrationNode}, n)
 	if err != nil {
 		t.Fatal(err)
 	}
 	s := httptest.NewUnstartedServer(handler)
 	s.Config.ErrorLog = log.New(io.Discard, "", 0)
-	s.TLS = &tls.Config{MinVersion: tls.VersionTLS13, Certificates: []tls.Certificate{serverCert}, ClientAuth: tls.RequireAndVerifyClientCert, ClientCAs: roots}
+	s.TLS = &tls.Config{MinVersion: tls.VersionTLS13, Certificates: []tls.Certificate{serverCert}}
 	s.StartTLS()
 	t.Cleanup(s.Close)
-	client := signedClient(t, s.URL, roots, serverCert, clientCert)
+	client := tlsClient(t, s.URL, roots)
 	t.Cleanup(client.Close)
 	full, err := client.Artifact(ctx, integrationNode, integrationOwner, metadata.ArtifactID, "")
 	if err != nil || full.Status != 200 || !bytes.Equal(full.Body, want) || !reflect.DeepEqual(full.Metadata, metadata) {

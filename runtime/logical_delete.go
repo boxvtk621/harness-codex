@@ -19,9 +19,6 @@ import (
 // It commits the node tombstone, ordinary command receipt, private operation
 // receipt, and hold release in one SQLite transaction.
 func (node *Node) DeleteLogicalDialog(ctx context.Context, trust OperatorTrustContext, raw []byte) Result {
-	if !trust.PeerVerified || trust.ActorID == "" || trust.ActorID != node.config.OwnerID {
-		return node.errorResult(http.StatusForbidden, "forbidden", "trusted operator is not allowed", "", nil, "")
-	}
 	if trust.TransportNodeID != node.config.NodeID {
 		return node.errorResult(http.StatusNotFound, "not_found", "node was not found", "", nil, "")
 	}
@@ -136,7 +133,7 @@ func (node *Node) DeleteLogicalDialog(ctx context.Context, trust OperatorTrustCo
 	}
 	if _, err := tx.ExecContext(ctx, `INSERT INTO commands(command_id,actor_id,node_id,kind,canonical_json,
 		canonical_payload_hash,receipt_json,accepted_at,event_seq) VALUES(?,?,?,?,?,?,?,?,?)`, request.CommandID,
-		trust.ActorID, state.NodeID, command.Kind, canonicalCommand, commandHash, commandReceiptJSON,
+		node.config.OwnerID, state.NodeID, command.Kind, canonicalCommand, commandHash, commandReceiptJSON,
 		commandReceipt.AcceptedAt, commandReceipt.EventSeq); err != nil {
 		return node.errorResult(http.StatusServiceUnavailable, "not_durable", "delete command commit failed", request.OperationID, nil, "")
 	}
@@ -214,9 +211,6 @@ func (node *Node) DeleteLogicalDialog(ctx context.Context, trust OperatorTrustCo
 // LogicalDeleteStatus is the only lost-ACK readback. It never replays the
 // command effect and is unavailable through the generic browser read surface.
 func (node *Node) LogicalDeleteStatus(ctx context.Context, trust OperatorTrustContext, operationID string) Result {
-	if !trust.PeerVerified || trust.ActorID == "" || trust.ActorID != node.config.OwnerID {
-		return node.errorResult(http.StatusForbidden, "forbidden", "trusted operator is not allowed", "", nil, "")
-	}
 	if trust.TransportNodeID != node.config.NodeID || !uuidPattern.MatchString(operationID) {
 		return node.errorResult(http.StatusNotFound, "not_found", "operation was not found", operationID, nil, "")
 	}

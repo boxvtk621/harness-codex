@@ -145,7 +145,7 @@
     },
     {
       "id": "foreign_actor",
-      "requirement": "Trusted transport does not grant a different actor access to this owner node. Auth precedes command lookup/CAS.",
+      "requirement": "Caller actor metadata is ignored; the private node boundary admits the command using durable owner namespace metadata.",
       "given": {
         "actorId": "1-2",
         "transportNodeId": "20000000-0000-4000-8000-000000000001",
@@ -200,11 +200,10 @@
         }
       },
       "expect": {
-        "httpStatus": 403,
-        "persistedProjection": "byte_for_byte_unchanged",
-        "lastEventSeqDelta": 0,
-        "adapterCalls": [],
-        "errorCode": "forbidden"
+        "httpStatus": 202,
+        "persistedProjection": "changed",
+        "lastEventSeqDelta": 3,
+        "adapterCalls": []
       }
     },
     {

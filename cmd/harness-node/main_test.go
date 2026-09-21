@@ -68,12 +68,26 @@ func TestProviderSelectionRejectsMissingAndUnknown(t *testing.T) {
 	}
 }
 
-func TestPeerPinsRejectEquivalentHexWithDifferentCase(t *testing.T) {
-	if err := validatePeerPins(strings.Repeat("a1", 32), strings.Repeat("A1", 32)); err == nil {
-		t.Fatal("the same certificate pin with different hex casing was accepted")
+func TestManualDispatchIsRestrictedToHL304Fixture(t *testing.T) {
+	valid := config{
+		Adapter: "codex", Codex: &codexConfig{Model: "fixture-no-provider-call"},
+		PolicyRevision: "hl304-fixture@1", ApprovalMode: "deny", ManualDispatchForTesting: true,
 	}
-	if err := validatePeerPins(strings.Repeat("a1", 32), strings.Repeat("b2", 32)); err != nil {
-		t.Fatal("distinct certificate pins were rejected", err)
+	if err := validateProviderSelection(valid); err != nil {
+		t.Fatalf("exact fixture configuration rejected: %v", err)
+	}
+	for _, mutate := range []func(*config){
+		func(cfg *config) { cfg.PolicyRevision = "production@1" },
+		func(cfg *config) { cfg.ApprovalMode = "explicit_once" },
+		func(cfg *config) { cfg.Codex.Model = "real-model" },
+	} {
+		candidate := valid
+		codex := *valid.Codex
+		candidate.Codex = &codex
+		mutate(&candidate)
+		if err := validateProviderSelection(candidate); err == nil {
+			t.Fatal("unsafe manual-dispatch configuration was accepted")
+		}
 	}
 }
 

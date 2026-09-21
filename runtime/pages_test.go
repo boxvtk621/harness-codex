@@ -57,7 +57,7 @@ func TestTypedPagesScopeAndStaleCursor(t *testing.T) {
 	if stale := opened.Dialogs(ctx, nodeTrust(), *decoded.NextCursor, 1); stale.HTTPStatus != 409 {
 		t.Fatalf("stale cursor=%d body=%s", stale.HTTPStatus, stale.Body)
 	}
-	if foreign := opened.History(ctx, node.TrustContext{ActorID: "1-2", TransportNodeID: testNodeID, PeerVerified: true}, reference.DialogID, "", 1); foreign.HTTPStatus != 403 {
+	if foreign := opened.History(ctx, node.TrustContext{TransportNodeID: testNodeID}, reference.DialogID, "", 1); foreign.HTTPStatus != 200 {
 		t.Fatalf("foreign history=%d", foreign.HTTPStatus)
 	}
 }

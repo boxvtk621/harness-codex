@@ -96,7 +96,7 @@ def destination_map():
         relative = path.relative_to(ROOT).as_posix()
         result[relative] = ("harness/server/" + path.name) if path.name in {"server.go", "server_test.go"} else ("api/" + path.name)
     # The consumer package is deliberately not imported. Its narrowly scoped
-    # mTLS behavior is adapted into a test-local client instead.
+    # Private HTTP behavior is adapted into a test-local client instead.
     result["integration/client_test.go"] = "internal/harnessclient/client.go"
     result.update({
         "Dockerfile": "deploy/components/Dockerfile.codex",

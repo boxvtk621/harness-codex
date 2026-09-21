@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/boxvtk621/harness-codex/fixture"
 	"github.com/boxvtk621/harness-codex/internal/harnessadapter"
@@ -31,11 +32,64 @@ func openDeleteNode(t *testing.T) *Node {
 }
 
 func deleteTestTrust() TrustContext {
-	return TrustContext{ActorID: deleteTestOwnerID, TransportNodeID: deleteTestNodeID, PeerVerified: true}
+	return TrustContext{TransportNodeID: deleteTestNodeID}
 }
 
 func deleteTestOperatorTrust() OperatorTrustContext {
-	return OperatorTrustContext{ActorID: deleteTestOwnerID, TransportNodeID: deleteTestNodeID, PeerVerified: true}
+	return OperatorTrustContext{TransportNodeID: deleteTestNodeID}
+}
+
+func TestExecutorHeartbeatReturnsWorkerObservation(t *testing.T) {
+	opened := openDeleteNode(t)
+	defer opened.Close()
+
+	const workerObservedAt = "2026-09-21T12:34:56Z"
+	opened.heartbeatMu.Lock()
+	opened.heartbeatAt = workerObservedAt
+	opened.heartbeatMu.Unlock()
+
+	result := opened.ExecutorHeartbeat(context.Background(), deleteTestTrust())
+	if result.HTTPStatus != 200 {
+		t.Fatalf("heartbeat status=%d body=%s", result.HTTPStatus, result.Body)
+	}
+	var heartbeat struct {
+		NodeID     string `json:"nodeId"`
+		BootID     string `json:"bootId"`
+		ObservedAt string `json:"observedAt"`
+	}
+	if err := json.Unmarshal(result.Body, &heartbeat); err != nil {
+		t.Fatal(err)
+	}
+	if heartbeat.NodeID != deleteTestNodeID || heartbeat.BootID == "" || heartbeat.ObservedAt != workerObservedAt {
+		t.Fatalf("heartbeat did not return stored worker observation: %+v", heartbeat)
+	}
+}
+
+func TestBootIdentityChangesAcrossRestartWithFixedClock(t *testing.T) {
+	dataDir := t.TempDir()
+	fixed := time.Date(2026, 9, 21, 12, 34, 56, 0, time.UTC)
+	open := func() *Node {
+		opened, err := Open(context.Background(), Config{
+			DataDir: dataDir, NodeID: deleteTestNodeID, OwnerID: deleteTestOwnerID, RegistryVersion: 1,
+			Adapter: fixture.NewAdapter(), Policies: fixture.NewPolicySource(), Space: fullSpace{}, ManualDispatchForTesting: true,
+			Clock: func() time.Time { return fixed },
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return opened
+	}
+
+	first := open()
+	firstBootID := first.bootID
+	if err := first.Close(); err != nil {
+		t.Fatal(err)
+	}
+	second := open()
+	defer second.Close()
+	if firstBootID == second.bootID {
+		t.Fatalf("boot identity was reused across restart: %s", firstBootID)
+	}
 }
 
 func createDeleteTestDialog(t *testing.T, opened *Node) string {

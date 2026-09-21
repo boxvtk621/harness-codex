@@ -2,9 +2,7 @@ package integration_test
 
 import (
 	"context"
-	"crypto/sha256"
 	"crypto/tls"
-	"encoding/hex"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -41,9 +39,8 @@ func TestAutonomousFIFOAndPauseThroughPrivateAPIClient(t *testing.T) {
 			}
 		}
 	})
-	roots, serverCert, clientCert := transportCertificates(t)
-	pin := sha256.Sum256(clientCert.Certificate[0])
-	handler, err := server.New(server.Config{NodeID: integrationNode, GatewayCertificateSHA256: hex.EncodeToString(pin[:])}, n)
+	roots, serverCert := transportCertificates(t)
+	handler, err := server.New(server.Config{NodeID: integrationNode}, n)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -54,10 +51,10 @@ func TestAutonomousFIFOAndPauseThroughPrivateAPIClient(t *testing.T) {
 		}
 		handler.ServeHTTP(w, r)
 	}))
-	s.TLS = &tls.Config{MinVersion: tls.VersionTLS13, Certificates: []tls.Certificate{serverCert}, ClientAuth: tls.RequireAndVerifyClientCert, ClientCAs: roots}
+	s.TLS = &tls.Config{MinVersion: tls.VersionTLS13, Certificates: []tls.Certificate{serverCert}}
 	s.StartTLS()
 	t.Cleanup(s.Close)
-	client := signedClient(t, s.URL, roots, serverCert, clientCert)
+	client := tlsClient(t, s.URL, roots)
 	t.Cleanup(client.Close)
 	command := func(raw []byte) hp.Receipt {
 		t.Helper()

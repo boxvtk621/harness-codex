@@ -5,10 +5,8 @@ import (
 	"context"
 	"crypto/ed25519"
 	"crypto/rand"
-	"crypto/sha256"
 	"crypto/tls"
 	"crypto/x509"
-	"encoding/hex"
 	"encoding/json"
 	"io"
 	"log"
@@ -27,10 +25,9 @@ import (
 	"github.com/boxvtk621/harness-codex/runtime"
 )
 
-func TestNodeHTTPWithLocalMTLSClient(t *testing.T) {
-	runNodeHTTPAcceptance(t, func(n *node.Node, certificate tls.Certificate) http.Handler {
-		pin := sha256.Sum256(certificate.Certificate[0])
-		handler, err := server.New(server.Config{NodeID: integrationNode, GatewayCertificateSHA256: hex.EncodeToString(pin[:])}, n)
+func TestNodeHTTPWithLocalTLSClientWithoutInboundAuthorization(t *testing.T) {
+	runNodeHTTPAcceptance(t, func(n *node.Node) http.Handler {
+		handler, err := server.New(server.Config{NodeID: integrationNode}, n)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -40,7 +37,7 @@ func TestNodeHTTPWithLocalMTLSClient(t *testing.T) {
 
 // No route or response is mocked: the sole transport fault discards one receipt
 // after the real B1 handler has run against its real SQLite authority.
-func runNodeHTTPAcceptance(t *testing.T, handlerFor func(*node.Node, tls.Certificate) http.Handler) {
+func runNodeHTTPAcceptance(t *testing.T, handlerFor func(*node.Node) http.Handler) {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
@@ -56,8 +53,8 @@ func runNodeHTTPAcceptance(t *testing.T, handlerFor func(*node.Node, tls.Certifi
 			}
 		}
 	})
-	roots, serverCert, clientCert := transportCertificates(t)
-	handler := handlerFor(n, clientCert)
+	roots, serverCert := transportCertificates(t)
+	handler := handlerFor(n)
 	var posts atomic.Int32
 	lostReceipt := make(chan []byte, 1)
 	s := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -79,10 +76,10 @@ func runNodeHTTPAcceptance(t *testing.T, handlerFor func(*node.Node, tls.Certifi
 		handler.ServeHTTP(w, r)
 	}))
 	s.Config.ErrorLog = log.New(io.Discard, "", 0)
-	s.TLS = &tls.Config{MinVersion: tls.VersionTLS13, Certificates: []tls.Certificate{serverCert}, ClientAuth: tls.RequireAndVerifyClientCert, ClientCAs: roots}
+	s.TLS = &tls.Config{MinVersion: tls.VersionTLS13, Certificates: []tls.Certificate{serverCert}}
 	s.StartTLS()
 	t.Cleanup(s.Close)
-	client := signedClient(t, s.URL, roots, serverCert, clientCert)
+	client := tlsClient(t, s.URL, roots)
 	t.Cleanup(client.Close)
 
 	read := func(path, query string, output any) apiResponse {
@@ -168,7 +165,7 @@ func runNodeHTTPAcceptance(t *testing.T, handlerFor func(*node.Node, tls.Certifi
 	command := messageCommand(t, "10000000-0000-4000-8000-000000000021", refs.DialogID, text, 1)
 	admitted, err := client.Command(ctx, integrationNode, integrationOwner, command)
 	if err != nil || admitted.Status != 202 {
-		t.Fatalf("enqueue through mTLS: status=%d err=%v body=%s", admitted.Status, err, admitted.Body)
+		t.Fatalf("enqueue through private TLS: status=%d err=%v body=%s", admitted.Status, err, admitted.Body)
 	}
 	var after hp.Snapshot
 	read("snapshot", "", &after)
@@ -216,7 +213,7 @@ func runNodeHTTPAcceptance(t *testing.T, handlerFor func(*node.Node, tls.Certifi
 	}
 }
 
-func transportCertificates(t *testing.T) (*x509.CertPool, tls.Certificate, tls.Certificate) {
+func transportCertificates(t *testing.T) (*x509.CertPool, tls.Certificate) {
 	t.Helper()
 	pub, key, err := ed25519.GenerateKey(rand.Reader)
 	if err != nil {
@@ -246,10 +243,10 @@ func transportCertificates(t *testing.T) (*x509.CertPool, tls.Certificate, tls.C
 		}
 		return tls.Certificate{Certificate: [][]byte{d}, PrivateKey: k}
 	}
-	return roots, leaf(2, x509.ExtKeyUsageServerAuth), leaf(3, x509.ExtKeyUsageClientAuth)
+	return roots, leaf(2, x509.ExtKeyUsageServerAuth)
 }
 
-func signedClient(t *testing.T, serverURL string, roots *x509.CertPool, serverCert, clientCert tls.Certificate) *testAPIClient {
+func tlsClient(t *testing.T, serverURL string, roots *x509.CertPool) *testAPIClient {
 	t.Helper()
-	return newTestAPIClient(serverURL, integrationNode, roots, serverCert, clientCert)
+	return newTestAPIClient(serverURL, integrationNode, roots)
 }

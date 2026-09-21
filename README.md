@@ -2,7 +2,7 @@
 
 Standalone, fail-closed runtime for running OpenAI Codex app-server in an isolated Docker container behind the private Harness HTTP/SSE API.
 
-The repository owns the Codex adapter, durable SQLite supervisor, mTLS API server, isolated tool runner, wire contracts, image and zero-turn smoke. It does not contain Panel, Router, Agent Service, Cursor, Fixik, provider credentials or production deployment state.
+The repository owns the Codex adapter, durable SQLite supervisor, private TLS API server, isolated tool runner, wire contracts, image and zero-turn smoke. It does not contain Panel, Router, Agent Service, Cursor, Fixik, provider credentials or production deployment state.
 
 ## Requirements
 
@@ -19,7 +19,7 @@ make image IMAGE=harness-codex:local
 make smoke IMAGE=harness-codex:local
 ```
 
-`make smoke` starts no turn and performs no model call. It proves the pinned Codex CLI version, native policy/MCP fence, helper isolation, mTLS identity, empty durable ledger, schema hashes, resource bounds and stable restart identity.
+`make smoke` starts no turn and performs no model call. It proves the pinned Codex CLI version, native policy/MCP fence, helper isolation, server TLS identity, auth-free private API, empty durable ledger, schema hashes, resource bounds and stable restart identity.
 
 ## Local fixture
 
@@ -40,6 +40,6 @@ With `--container`, the generated private files intentionally remain owner-only.
 
 ## Security boundary
 
-The image runs as UID/GID `10001:10001`; production launches must keep a read-only root filesystem, no network, all capabilities dropped, `no-new-privileges`, bounded CPU/memory/PIDs, a bounded `rw,noexec,nosuid` tmpfs at `/tmp`, and separate `/config`, `/state`, `/auth`, `/workspace` mounts. The private API requires TLS 1.3 and exact, distinct gateway/operator certificate SHA-256 pins.
+The image runs as UID/GID `10001:10001`; production launches must keep a read-only root filesystem, no external network, all capabilities dropped, `no-new-privileges`, bounded CPU/memory/PIDs, a bounded `rw,noexec,nosuid` tmpfs at `/tmp`, and separate `/config`, `/state`, `/auth`, `/workspace` mounts. The private API requires TLS 1.3 server identity but does not request client certificates or accept caller identity.
 
 The versioned wire contract is documented in [`docs/harness-v1.md`](docs/harness-v1.md). Source extraction provenance is recorded in `provenance/source-manifest.csv`; hashes use canonical Git bytes so verification is independent of checkout line-ending conversion.

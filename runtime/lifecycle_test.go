@@ -53,7 +53,7 @@ func waitFor(t *testing.T, check func() bool) {
 }
 
 func nodeTrust() node.TrustContext {
-	return node.TrustContext{ActorID: testOwnerID, TransportNodeID: testNodeID, PeerVerified: true}
+	return node.TrustContext{TransportNodeID: testNodeID}
 }
 
 func currentSnapshot(t *testing.T, ctx context.Context, opened *node.Node) harnessprotocol.Snapshot {

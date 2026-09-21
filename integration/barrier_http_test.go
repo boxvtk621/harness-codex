@@ -3,9 +3,7 @@ package integration_test
 import (
 	"bytes"
 	"context"
-	"crypto/sha256"
 	"crypto/tls"
-	"encoding/hex"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -41,22 +39,21 @@ func TestBarrierRejectionAndExactReadbackThroughRealClient(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	hold := n.InstallHold(ctx, node.OperatorTrustContext{PeerVerified: true, ActorID: integrationOwner, TransportNodeID: integrationNode}, holdRequest)
+	hold := n.InstallHold(ctx, node.OperatorTrustContext{TransportNodeID: integrationNode}, holdRequest)
 	if hold.HTTPStatus != http.StatusCreated || harnessbarrier.Validate("holdReceipt", hold.Body) != nil {
 		t.Fatalf("install hold: status=%d body=%s", hold.HTTPStatus, hold.Body)
 	}
 
-	roots, serverCert, clientCert := transportCertificates(t)
-	pin := sha256.Sum256(clientCert.Certificate[0])
-	handler, err := server.New(server.Config{NodeID: integrationNode, GatewayCertificateSHA256: hex.EncodeToString(pin[:])}, n)
+	roots, serverCert := transportCertificates(t)
+	handler, err := server.New(server.Config{NodeID: integrationNode}, n)
 	if err != nil {
 		t.Fatal(err)
 	}
 	httpServer := httptest.NewUnstartedServer(handler)
-	httpServer.TLS = &tls.Config{MinVersion: tls.VersionTLS13, Certificates: []tls.Certificate{serverCert}, ClientAuth: tls.RequireAndVerifyClientCert, ClientCAs: roots}
+	httpServer.TLS = &tls.Config{MinVersion: tls.VersionTLS13, Certificates: []tls.Certificate{serverCert}}
 	httpServer.StartTLS()
 	defer httpServer.Close()
-	client := signedClient(t, httpServer.URL, roots, serverCert, clientCert)
+	client := tlsClient(t, httpServer.URL, roots)
 	defer client.Close()
 
 	late := messageCommand(t, "55000000-0000-4000-8000-000000000001", dialog.DialogID, "delayed forwarded submit", 1)

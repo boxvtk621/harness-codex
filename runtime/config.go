@@ -93,10 +93,8 @@ func (config *Config) defaults() error {
 }
 
 type TrustContext struct {
-	ActorID         string
 	TransportNodeID string
-	PeerVerified    bool
-	// ExpectedIdentity is supplied by the authenticated HTTP boundary and is
+	// ExpectedIdentity is supplied by the private HTTP boundary and is
 	// compared with durable state under the node admission lock.
 	ExpectedIdentity *harnessprotocol.NodeIdentity
 }

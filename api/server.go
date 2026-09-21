@@ -1,10 +1,7 @@
-// Package server exposes the private mTLS Harness HTTP boundary.
+// Package server exposes the private Harness HTTP boundary.
 package server
 
 import (
-	"crypto/sha256"
-	"crypto/subtle"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"io"
@@ -21,40 +18,20 @@ import (
 	"github.com/boxvtk621/harness-codex/runtime"
 )
 
-const DefaultActorHeader = "X-Harness-Actor-ID"
-
 type Config struct {
-	NodeID                    string
-	GatewayCertificateSHA256  string
-	OperatorCertificateSHA256 string
-	ActorHeader               string
+	NodeID string
 }
 
 func New(config Config, authority *node.Node) (http.Handler, error) {
 	if authority == nil || config.NodeID == "" || authority.NodeID() != config.NodeID {
 		return nil, errors.New("server config is incomplete")
 	}
-	pin, err := hex.DecodeString(config.GatewayCertificateSHA256)
-	if err != nil || len(pin) != sha256.Size {
-		return nil, errors.New("gateway certificate SHA-256 pin is invalid")
-	}
-	var operatorPin []byte
-	if config.OperatorCertificateSHA256 != "" {
-		operatorPin, err = hex.DecodeString(config.OperatorCertificateSHA256)
-		if err != nil || len(operatorPin) != sha256.Size {
-			return nil, errors.New("operator certificate SHA-256 pin is invalid")
-		}
-	}
-	if config.ActorHeader == "" {
-		config.ActorHeader = DefaultActorHeader
-	}
-	if strings.ContainsAny(config.ActorHeader, "\r\n") {
-		return nil, errors.New("actor header is invalid")
-	}
-	server := &Server{config: config, node: authority, gatewayPin: pin, operatorPin: operatorPin}
+	server := &Server{config: config, node: authority}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health/live", server.live)
 	mux.HandleFunc("GET /health/ready", server.ready)
+	mux.HandleFunc("GET /v1/identity", server.identity)
+	mux.HandleFunc("GET /v1/executor/heartbeat", server.executorHeartbeat)
 	mux.HandleFunc("GET /v1/nodes/{nodeId}/identity", server.identity)
 	mux.HandleFunc("GET /v1/nodes/{nodeId}/admission", server.admission)
 	mux.HandleFunc("GET /v1/nodes/{nodeId}/snapshot", server.snapshot)
@@ -199,7 +176,7 @@ func (server *Server) historyExport(writer http.ResponseWriter, request *http.Re
 	after, afterOK := parse("afterSeq", 0)
 	limit, limitOK := parse("limit", historyreplica.MaximumPageSize)
 	identity := historyreplica.StreamIdentity{
-		OwnerID: trust.ActorID, LogicalDialogID: query.Get("logicalDialogId"), NodeID: request.PathValue("nodeId"),
+		OwnerID: server.node.OwnerID(), LogicalDialogID: query.Get("logicalDialogId"), NodeID: request.PathValue("nodeId"),
 		NodeDialogID: request.PathValue("dialogId"), BindingGeneration: binding,
 	}
 	if !bindingOK || !afterOK || !limitOK {
@@ -522,56 +499,29 @@ func (server *Server) events(writer http.ResponseWriter, request *http.Request) 
 }
 
 type Server struct {
-	config      Config
-	node        *node.Node
-	gatewayPin  []byte
-	operatorPin []byte
-	handler     http.Handler
+	config  Config
+	node    *node.Node
+	handler http.Handler
 }
 
 func (server *Server) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
 	server.handler.ServeHTTP(writer, request)
 }
 
-func (server *Server) trust(request *http.Request) (node.TrustContext, bool) {
-	return server.trustWithPin(request, server.gatewayPin)
-}
-
-func (server *Server) trustWithPin(request *http.Request, pin []byte) (node.TrustContext, bool) {
-	if request.TLS == nil || !request.TLS.HandshakeComplete || len(request.TLS.VerifiedChains) == 0 || len(request.TLS.PeerCertificates) == 0 {
-		return node.TrustContext{}, false
-	}
-	digest := sha256.Sum256(request.TLS.PeerCertificates[0].Raw)
-	if len(pin) != sha256.Size || subtle.ConstantTimeCompare(digest[:], pin) != 1 {
-		return node.TrustContext{}, false
-	}
-	actor := request.Header.Get(server.config.ActorHeader)
-	if actor == "" {
-		return node.TrustContext{}, false
-	}
-	transportNodeID := request.PathValue("nodeId")
-	if transportNodeID == "" {
-		transportNodeID = server.config.NodeID
-	}
-	return node.TrustContext{ActorID: actor, TransportNodeID: transportNodeID, PeerVerified: true}, true
-}
-
 func (server *Server) authenticate(writer http.ResponseWriter, request *http.Request) (node.TrustContext, bool) {
-	trust, ok := server.trust(request)
-	if ok {
-		return trust, true
+	nodeID := request.PathValue("nodeId")
+	if nodeID == "" {
+		nodeID = server.config.NodeID
 	}
-	writeResult(writer, server.node.Forbidden())
-	return node.TrustContext{}, false
+	return node.TrustContext{TransportNodeID: nodeID}, true
 }
 
 func (server *Server) authenticateOperator(writer http.ResponseWriter, request *http.Request) (node.OperatorTrustContext, bool) {
-	trust, ok := server.trustWithPin(request, server.operatorPin)
-	if !ok {
-		writeResult(writer, server.node.Forbidden())
-		return node.OperatorTrustContext{}, false
+	nodeID := request.PathValue("nodeId")
+	if nodeID == "" {
+		nodeID = server.config.NodeID
 	}
-	return node.OperatorTrustContext{ActorID: trust.ActorID, TransportNodeID: trust.TransportNodeID, PeerVerified: trust.PeerVerified}, true
+	return node.OperatorTrustContext{TransportNodeID: nodeID}, true
 }
 
 func (server *Server) installHold(writer http.ResponseWriter, request *http.Request) {
@@ -690,6 +640,18 @@ func (server *Server) identity(writer http.ResponseWriter, request *http.Request
 		return
 	}
 	writeResult(writer, server.node.Identity(request.Context(), trust))
+}
+
+func (server *Server) executorHeartbeat(writer http.ResponseWriter, request *http.Request) {
+	trust, ok := server.authenticate(writer, request)
+	if !ok {
+		return
+	}
+	if !validQuery(request) {
+		writeResult(writer, server.node.Invalid("query is invalid"))
+		return
+	}
+	writeResult(writer, server.node.ExecutorHeartbeat(request.Context(), trust))
 }
 
 func (server *Server) admission(writer http.ResponseWriter, request *http.Request) {

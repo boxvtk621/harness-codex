@@ -74,7 +74,7 @@ def codex_smoke(image, openssl_path=None):
                 '-v', volumes['auth'] + ':/auth', '-v', volumes['workspace'] + ':/workspace',
                 '-v', volumes['native'] + ':/native',
                 '--entrypoint', '/bin/sh', image, '-c',
-                'cp -R /source/. /config/ && cp /fixture/gateway.pem /fixture/gateway.key /config/ '
+                'cp -R /source/. /config/ '
                 '&& mkdir -p /state/codex/home /auth/codex /native/home /native/codex '
                 '&& chown -R 10001:10001 /config /state /auth /workspace /native '
                 '&& mkdir /workspace/self-test && chown 10001:10001 /workspace/self-test '
@@ -141,9 +141,8 @@ console.log('CODEX_NATIVE_THREAD_POLICY_PASS; no turn/start, no model call');sto
                 *mounts, image, '--config', '/config/node.json')
             probe = """const https=require('node:https'),fs=require('node:fs');
 const node=JSON.parse(fs.readFileSync('/config/node.json')).nodeId;
-https.get({hostname:'127.0.0.1',port:18443,path:'/v1/nodes/'+node+'/identity',
-ca:fs.readFileSync('/config/ca.pem'),cert:fs.readFileSync('/config/gateway.pem'),key:fs.readFileSync('/config/gateway.key'),
-headers:{'X-Harness-Actor-ID':'fixture-owner'}},r=>{let d='';r.on('data',c=>d+=c);r.on('end',()=>{
+https.get({hostname:'127.0.0.1',port:18443,path:'/v1/identity',
+ca:fs.readFileSync('/config/ca.pem')},r=>{let d='';r.on('data',c=>d+=c);r.on('end',()=>{
 const v=JSON.parse(d); const capabilities=Object.values(v.capabilities||{});
 if(r.statusCode!==200||v.nodeId!==node||v.adapter.kind!=='codex'||v.adapter.version!=='0.153.4'||capabilities.length!==7||capabilities.some(x=>x!=='verified'))process.exit(1);
 console.log(JSON.stringify({node:v.nodeId,epoch:v.identityEpoch,adapter:v.adapter,capabilities:v.capabilities}));});}).on('error',()=>process.exit(1));"""
@@ -205,7 +204,7 @@ console.log(JSON.stringify(out));"""
                        '/harness-tool-runner') == '0:0:555:regular file'
             workspaces = [item for item in info['Mounts'] if item.get('Destination') == '/workspace']
             assert len(workspaces) == 1 and workspaces[0].get('RW') is True
-            print('CODEX_CONTAINER_NATIVE_POLICY_MTLS_EMPTY_LEDGER_RESTART_PASS; zero turns, no model calls', flush=True)
+            print('CODEX_CONTAINER_NATIVE_POLICY_TLS_AUTH_FREE_EMPTY_LEDGER_RESTART_PASS; zero turns, no model calls', flush=True)
         finally:
             subprocess.run(['docker', 'rm', '-f', container], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             for volume in created_volumes:

@@ -12,10 +12,6 @@ import (
 )
 
 func (node *Node) authorizeRead(trust TrustContext) *Result {
-	if !trust.PeerVerified || trust.ActorID != node.config.OwnerID || trust.ActorID == "" {
-		result := node.errorResult(http.StatusForbidden, "forbidden", "trusted actor is not allowed", "", nil, "")
-		return &result
-	}
 	if trust.TransportNodeID != node.config.NodeID {
 		result := node.errorResult(http.StatusNotFound, "not_found", "node was not found", "", nil, "")
 		return &result
@@ -23,11 +19,10 @@ func (node *Node) authorizeRead(trust TrustContext) *Result {
 	return nil
 }
 
-func (node *Node) Forbidden() Result {
-	return node.errorResult(http.StatusForbidden, "forbidden", "mTLS gateway identity is not allowed", "", nil, "")
-}
-
 func (node *Node) NodeID() string { return node.config.NodeID }
+
+// OwnerID is immutable historical namespace metadata, not caller identity.
+func (node *Node) OwnerID() string { return node.config.OwnerID }
 
 func (node *Node) Invalid(message string) Result {
 	return node.errorResult(http.StatusBadRequest, "invalid", message, "", nil, "")
@@ -193,6 +188,31 @@ func (node *Node) Admission(ctx context.Context, trust TrustContext) Result {
 
 func (node *Node) HealthLive() Result {
 	return node.wireResult("healthLive", harnessprotocol.HealthLive{ProtocolVersion: harnessprotocol.ProtocolVersion, SchemaID: harnessprotocol.SchemaID, Status: "live", ProcessStartedAt: node.startedAt})
+}
+
+// ExecutorHeartbeat is runtime observation, not an SSE transport keepalive.
+func (node *Node) ExecutorHeartbeat(ctx context.Context, trust TrustContext) Result {
+	if denied := node.authorizeRead(trust); denied != nil {
+		return *denied
+	}
+	node.mu.Lock()
+	state, err := loadState(ctx, node.db)
+	node.mu.Unlock()
+	if err != nil {
+		return node.errorResult(http.StatusServiceUnavailable, "not_durable", "executor heartbeat is unavailable", "", nil, "")
+	}
+	body, err := json.Marshal(struct {
+		NodeID     string `json:"nodeId"`
+		BootID     string `json:"bootId"`
+		ObservedAt string `json:"observedAt"`
+		Health     string `json:"health"`
+		Readiness  string `json:"readiness"`
+		Capacity   int    `json:"capacity"`
+	}{node.config.NodeID, node.bootID, node.executorHeartbeatAt(), "live", state.EngineReadiness, QueueCapacity})
+	if err != nil {
+		return node.errorResult(http.StatusServiceUnavailable, "not_durable", "executor heartbeat is unavailable", "", nil, "")
+	}
+	return Result{HTTPStatus: http.StatusOK, Body: body}
 }
 
 func (node *Node) HealthReady(ctx context.Context, trust TrustContext) Result {

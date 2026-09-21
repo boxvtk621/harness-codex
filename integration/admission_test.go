@@ -44,7 +44,7 @@ func config(path string) node.Config {
 }
 
 func trusted() node.TrustContext {
-	return node.TrustContext{PeerVerified: true, ActorID: integrationOwner, TransportNodeID: integrationNode}
+	return node.TrustContext{TransportNodeID: integrationNode}
 }
 
 func createCommand() []byte {
@@ -173,9 +173,8 @@ func TestAdmissionReplaysOriginalReceiptAcrossVersionAndRestart(t *testing.T) {
 	fault(t, n.SubmitCommand(ctx, trusted(), changedExpected), 409, "id_conflict")
 	changed := messageCommand(t, "10000000-0000-4000-8000-000000000012", refs.DialogID, "different intent", 1)
 	fault(t, n.SubmitCommand(ctx, trusted(), changed), 409, "id_conflict")
-	foreign := trusted()
-	foreign.ActorID = "1-2"
-	fault(t, n.SubmitCommand(ctx, foreign, first), 403, "forbidden")
+	authFreeReplay := n.SubmitCommand(ctx, node.TrustContext{TransportNodeID: integrationNode}, first)
+	receipt(t, authFreeReplay, 200, first)
 	fault(t, n.SubmitCommand(ctx, trusted(), []byte(`{"broken":true}`)), 400, "invalid")
 	if err := n.Close(); err != nil {
 		t.Fatal(err)

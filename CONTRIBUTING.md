@@ -6,7 +6,7 @@ Before a change:
 
 1. Read `AGENTS.md` and the relevant API/runtime code.
 2. Confirm the source tree is clean and the worktree is isolated.
-3. Treat public JSON contracts, SQLite migrations, native mapping schema, mTLS pins and recovery proofs as compatibility boundaries.
+3. Treat public JSON contracts, SQLite migrations, native mapping schema, server TLS identity and recovery proofs as compatibility boundaries. The private API has no inbound caller authentication.
 
 Before handoff run:
 

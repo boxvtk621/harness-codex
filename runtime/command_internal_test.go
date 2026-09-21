@@ -36,7 +36,7 @@ func TestLowStorageRejectsAdmissionButPreservesControlPath(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer n.Close()
-	trust := TrustContext{ActorID: "1-1", TransportNodeID: "20000000-0000-4000-8000-000000000001", PeerVerified: true}
+	trust := TrustContext{TransportNodeID: "20000000-0000-4000-8000-000000000001"}
 	created := n.SubmitCommand(ctx, trust, []byte(`{"protocolVersion":1,"schemaId":"harness-wire-v2","commandId":"10000000-0000-4000-8000-000000000011","kind":"dialog.create","target":{"nodeId":"20000000-0000-4000-8000-000000000001"},"expected":{"registryVersion":1},"payload":{}}`))
 	if created.HTTPStatus != 202 {
 		t.Fatalf("create %d %s", created.HTTPStatus, created.Body)
@@ -91,7 +91,7 @@ func TestMessageAdmissionBuildsValidatedEvents(t *testing.T) {
 	}
 	defer node.Close()
 	create := []byte(`{"protocolVersion":1,"schemaId":"harness-wire-v2","commandId":"10000000-0000-4000-8000-000000000001","kind":"dialog.create","target":{"nodeId":"20000000-0000-4000-8000-000000000001"},"expected":{"registryVersion":1},"payload":{}}`)
-	created := node.SubmitCommand(ctx, TrustContext{ActorID: "1-1", TransportNodeID: "20000000-0000-4000-8000-000000000001", PeerVerified: true}, create)
+	created := node.SubmitCommand(ctx, TrustContext{TransportNodeID: "20000000-0000-4000-8000-000000000001"}, create)
 	if created.HTTPStatus != 202 {
 		t.Fatalf("create status=%d body=%s", created.HTTPStatus, created.Body)
 	}

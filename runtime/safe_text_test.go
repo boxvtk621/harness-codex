@@ -266,9 +266,9 @@ func TestSafeTextDurabilityChunkingScopeAndReplay(t *testing.T) {
 	if missing.HTTPStatus != 404 {
 		t.Fatalf("old truncated result was presented as complete: %d %s", missing.HTTPStatus, missing.Body)
 	}
-	foreign := opened.SafeTextManifest(ctx, node.TrustContext{ActorID: "1-2", TransportNodeID: testNodeID, PeerVerified: true}, reference.DialogID, reference.AttemptID, source)
-	if foreign.HTTPStatus != 403 {
-		t.Fatalf("foreign owner read safe text: %d %s", foreign.HTTPStatus, foreign.Body)
+	foreign := opened.SafeTextManifest(ctx, node.TrustContext{TransportNodeID: testNodeID}, reference.DialogID, reference.AttemptID, source)
+	if foreign.HTTPStatus != 200 {
+		t.Fatalf("auth-free safe text read failed: %d %s", foreign.HTTPStatus, foreign.Body)
 	}
 	wrongSource := source
 	wrongSource.ID = "71000000-0000-4000-8000-000000000009"

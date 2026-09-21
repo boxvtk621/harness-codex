@@ -2,7 +2,6 @@
 """Create a new Codex-only Harness configuration without provider credentials."""
 
 import argparse
-import hashlib
 import json
 import os
 from pathlib import Path
@@ -53,17 +52,13 @@ def main():
             raise RuntimeError("OpenSSL operation failed; existing files were preserved")
         return result.stdout
 
-    def certificate(name, *, client):
+    def certificate(name):
         openssl("req", "-new", "-newkey", "ed25519", "-noenc", "-keyout", name + ".key", "-out", name + ".csr", "-subj", "/CN=" + name)
-        extended = "clientAuth" if client else "serverAuth"
-        write(name + ".ext", "basicConstraints=critical,CA:FALSE\nkeyUsage=critical,digitalSignature\nextendedKeyUsage=" + extended + "\nsubjectAltName=DNS:localhost,DNS:codex,IP:127.0.0.1\n")
+        write(name + ".ext", "basicConstraints=critical,CA:FALSE\nkeyUsage=critical,digitalSignature\nextendedKeyUsage=serverAuth\nsubjectAltName=DNS:localhost,DNS:codex,IP:127.0.0.1\n")
         openssl("x509", "-req", "-in", name + ".csr", "-CA", "ca.pem", "-CAkey", "ca.key", "-set_serial", str(uuid.uuid4().int), "-days", "30", "-out", name + ".pem", "-extfile", name + ".ext")
-        return hashlib.sha256(openssl("x509", "-in", name + ".pem", "-outform", "DER")).hexdigest()
 
     openssl("req", "-x509", "-newkey", "ed25519", "-noenc", "-keyout", "ca.key", "-out", "ca.pem", "-subj", "/CN=Harness Codex local CA", "-days", "30", "-addext", "basicConstraints=critical,CA:TRUE", "-addext", "keyUsage=critical,keyCertSign,cRLSign")
-    certificate("node", client=False)
-    gateway_pin = certificate("gateway", client=True)
-    operator_pin = certificate("operator", client=True)
+    certificate("node")
     node_id = str(uuid.uuid4())
     write("policy.txt", "Codex Harness deny-only smoke policy. No model turn may be started.\n")
     write("tools.json", "[]\n")
@@ -78,9 +73,6 @@ def main():
         "registryVersion": 1,
         "certificateFile": str(root / "node.pem"),
         "keyFile": str(root / "node.key"),
-        "clientCAFile": str(root / "ca.pem"),
-        "gatewayCertificateSHA256": gateway_pin,
-        "operatorCertificateSHA256": operator_pin,
         "policyFile": str(root / "policy.txt"),
         "toolManifestFile": str(root / "tools.json"),
         "policyRevision": "codex-deny-v1",
@@ -103,7 +95,7 @@ def main():
             shutil.copyfile(root / name, destination / name)
         container_config = dict(config)
         container_config.update(listen="0.0.0.0:18443", dataDir="/state/node")
-        for field in ("certificateFile", "keyFile", "clientCAFile", "policyFile", "toolManifestFile"):
+        for field in ("certificateFile", "keyFile", "policyFile", "toolManifestFile"):
             container_config[field] = "/config/" + Path(container_config[field]).name
         container_config["codex"] = dict(config["codex"])
         container_config["codex"].update(

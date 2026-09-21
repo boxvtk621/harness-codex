@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"sync"
+	"time"
 
 	"github.com/boxvtk621/harness-codex/internal/harnessadapter"
 	"github.com/boxvtk621/harness-codex/internal/harnessprotocol"
@@ -19,6 +20,8 @@ func (node *Node) afterCommit(_ context.Context, action postCommitAction) {
 }
 
 func (node *Node) actionLoop(ctx context.Context) {
+	heartbeat := time.NewTicker(time.Second)
+	defer heartbeat.Stop()
 	type actionLane struct {
 		name     string
 		capacity chan struct{}
@@ -40,7 +43,9 @@ func (node *Node) actionLoop(ctx context.Context) {
 			case <-ctx.Done():
 				return
 			case <-node.actions:
+			case <-heartbeat.C:
 			}
+			node.recordExecutorHeartbeat()
 		}
 		firstCycle = false
 		for {
@@ -83,6 +88,18 @@ func (node *Node) actionLoop(ctx context.Context) {
 			}
 		}
 	}
+}
+
+func (node *Node) recordExecutorHeartbeat() {
+	node.heartbeatMu.Lock()
+	node.heartbeatAt = timestamp(node.config.Clock())
+	node.heartbeatMu.Unlock()
+}
+
+func (node *Node) executorHeartbeatAt() string {
+	node.heartbeatMu.RLock()
+	defer node.heartbeatMu.RUnlock()
+	return node.heartbeatAt
 }
 
 func (node *Node) claimAction(ctx context.Context, lane string) (postCommitAction, bool) {
