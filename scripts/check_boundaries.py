@@ -3,6 +3,7 @@
 
 from pathlib import Path
 import re
+import subprocess
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -34,7 +35,15 @@ POLICY_REFERENCE_FILES = {
 
 
 def tracked_files():
-    for path in ROOT.rglob("*"):
+    result = subprocess.run(
+        ["git", "-C", str(ROOT), "ls-files", "--cached", "--others", "--exclude-standard", "-z"],
+        check=True,
+        capture_output=True,
+    )
+    for encoded in result.stdout.split(b"\0"):
+        if not encoded:
+            continue
+        path = ROOT / encoded.decode("utf-8")
         if not path.is_file() or any(part in IGNORED for part in path.relative_to(ROOT).parts):
             continue
         yield path
