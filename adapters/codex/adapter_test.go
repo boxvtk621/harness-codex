@@ -1622,6 +1622,11 @@ func runAdapterHelper() int {
 				_ = encoder.Encode(map[string]any{"id": frame.ID, "error": map[string]any{"code": -32000, "message": "refresh failed"}})
 				continue
 			}
+			if request.RefreshToken && authenticated {
+				if delay, err := time.ParseDuration(os.Getenv("CODEX_AUTH_REFRESH_DELAY")); err == nil && delay > 0 {
+					time.Sleep(delay)
+				}
+			}
 			var account any
 			if authenticated {
 				account = map[string]any{"type": "chatgpt", "email": "fixture@example.invalid", "planType": "unknown"}
@@ -1635,7 +1640,9 @@ func runAdapterHelper() int {
 			}})
 			if os.Getenv("CODEX_AUTH_NO_COMPLETE") != "1" {
 				authenticated = true
-				_ = encoder.Encode(map[string]any{"method": "account/login/completed", "params": map[string]any{"loginId": pendingLoginID, "success": true, "error": nil}})
+				_ = encoder.Encode(map[string]any{"method": "account/login/completed", "params": map[string]any{
+					"loginId": pendingLoginID, "success": true, "error": nil, "onboardingEntrypoint": "life_sciences",
+				}})
 			}
 		case "account/login/cancel":
 			status := "notFound"

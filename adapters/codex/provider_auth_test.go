@@ -9,6 +9,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/boxvtk621/harness-codex/internal/providerauth"
 )
 
 const (
@@ -171,6 +173,136 @@ func TestProviderAuthLateCompletionReconcilesAccountWithoutRevivingCancel(t *tes
 	reconciled, failure := adapter.Snapshot(context.Background(), authNodeID)
 	if failure != nil || reconciled.State != "authenticated" || reconciled.Operation.Status != "cancelled" {
 		t.Fatalf("late completion=%+v failure=%+v", reconciled, failure)
+	}
+}
+
+func TestProviderAuthLateCompletionExpiresBeforeReadback(t *testing.T) {
+	config := testAdapterConfig(t, 2*time.Second)
+	config.Environment = append(config.Environment, "CODEX_AUTH_NO_COMPLETE=1", "CODEX_AUTH_CANCEL_AUTHENTICATES=1")
+	adapter, err := New(config, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer adapter.Close()
+	started, failure := adapter.StartAuth(context.Background(), authNodeID, authCommand1, "device_code", nil)
+	if failure != nil || started.Operation == nil {
+		t.Fatalf("started=%+v failure=%+v", started, failure)
+	}
+	loginID := adapter.auth.Operation.ProviderLoginID
+	var cancelled cancelLoginResponse
+	if err := adapter.session.Call(context.Background(), "account/login/cancel", map[string]string{"loginId": loginID}, &cancelled); err != nil {
+		t.Fatal(err)
+	}
+	past := authTimestamp(time.Now().Add(-time.Second))
+	adapter.authMu.Lock()
+	adapter.auth.Operation.TimeoutAt = &past
+	adapter.authMu.Unlock()
+
+	adapter.completeProviderLogin(accountLoginCompleted{LoginID: &loginID, Success: true, OnboardingEntrypoint: stringPointer("life_sciences")})
+	snapshot, failure := adapter.Snapshot(context.Background(), authNodeID)
+	if failure != nil || snapshot.State != "authenticated" || snapshot.Operation == nil || snapshot.Operation.Status != "expired" {
+		t.Fatalf("late completion=%+v failure=%+v", snapshot, failure)
+	}
+}
+
+func TestProviderAuthCompletionReadbackCannotCrossDeadline(t *testing.T) {
+	config := testAdapterConfig(t, 2*time.Second)
+	config.Environment = append(config.Environment, "CODEX_AUTH_NO_COMPLETE=1", "CODEX_AUTH_CANCEL_AUTHENTICATES=1", "CODEX_AUTH_REFRESH_DELAY=100ms")
+	adapter, err := New(config, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer adapter.Close()
+	started, failure := adapter.StartAuth(context.Background(), authNodeID, authCommand1, "device_code", nil)
+	if failure != nil || started.Operation == nil {
+		t.Fatalf("started=%+v failure=%+v", started, failure)
+	}
+	loginID := adapter.auth.Operation.ProviderLoginID
+	var cancelled cancelLoginResponse
+	if err := adapter.session.Call(context.Background(), "account/login/cancel", map[string]string{"loginId": loginID}, &cancelled); err != nil {
+		t.Fatal(err)
+	}
+	deadline := authTimestamp(time.Now().Add(30 * time.Millisecond))
+	adapter.authMu.Lock()
+	adapter.auth.Operation.TimeoutAt = &deadline
+	adapter.authMu.Unlock()
+	adapter.completeProviderLogin(accountLoginCompleted{LoginID: &loginID, Success: true, OnboardingEntrypoint: stringPointer("life_sciences")})
+	snapshot, failure := adapter.Snapshot(context.Background(), authNodeID)
+	if failure != nil || snapshot.Operation == nil || snapshot.Operation.Status != "expired" ||
+		snapshot.Operation.ReasonCode == nil || *snapshot.Operation.ReasonCode != "expired" {
+		if snapshot.Operation != nil {
+			t.Fatalf("deadline-crossing readback=%+v operation=%+v failure=%+v", snapshot, *snapshot.Operation, failure)
+		}
+		t.Fatalf("deadline-crossing readback=%+v failure=%+v", snapshot, failure)
+	}
+}
+
+func TestProviderAuthCheckExpiresMissedCompletionWithoutInferringSuccess(t *testing.T) {
+	config := testAdapterConfig(t, 2*time.Second)
+	config.Environment = append(config.Environment, "CODEX_AUTH_NO_COMPLETE=1", "CODEX_AUTH_CANCEL_AUTHENTICATES=1")
+	adapter, err := New(config, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer adapter.Close()
+	started, failure := adapter.StartAuth(context.Background(), authNodeID, authCommand1, "device_code", nil)
+	if failure != nil || started.Operation == nil {
+		t.Fatalf("started=%+v failure=%+v", started, failure)
+	}
+	loginID := adapter.auth.Operation.ProviderLoginID
+	var cancelled cancelLoginResponse
+	if err := adapter.session.Call(context.Background(), "account/login/cancel", map[string]string{"loginId": loginID}, &cancelled); err != nil {
+		t.Fatal(err)
+	}
+	past := authTimestamp(time.Now().Add(-time.Second))
+	adapter.authMu.Lock()
+	adapter.auth.Operation.TimeoutAt = &past
+	adapter.authMu.Unlock()
+
+	checked, failure := adapter.Check(context.Background(), authNodeID, authCommand2)
+	if failure != nil || checked.State != "authenticated" || checked.Operation == nil || checked.Operation.Status != "expired" {
+		t.Fatalf("checked=%+v failure=%+v", checked, failure)
+	}
+}
+
+func TestProviderAuthCompletionShapeRemainsStrict(t *testing.T) {
+	loginID := "fixture-login"
+	valid := json.RawMessage(`{"loginId":"fixture-login","success":true,"error":null,"onboardingEntrypoint":"life_sciences"}`)
+	var completion accountLoginCompleted
+	if !decodeStrict(valid, &completion) || completion.LoginID == nil || *completion.LoginID != loginID ||
+		completion.OnboardingEntrypoint == nil || *completion.OnboardingEntrypoint != "life_sciences" {
+		t.Fatalf("pinned completion was rejected: %+v", completion)
+	}
+	unknown := json.RawMessage(`{"loginId":"fixture-login","success":true,"error":null,"onboardingEntrypoint":null,"unexpected":true}`)
+	if decodeStrict(unknown, &completion) {
+		t.Fatal("completion with unknown field was accepted")
+	}
+}
+
+func TestProviderAuthNotificationRejectsNonPinnedOnboardingEntrypoint(t *testing.T) {
+	for name, params := range map[string]json.RawMessage{
+		"omitted":     json.RawMessage(`{"loginId":"fixture-login","success":true,"error":null}`),
+		"null":        json.RawMessage(`{"loginId":"fixture-login","success":true,"error":null,"onboardingEntrypoint":null}`),
+		"wrong value": json.RawMessage(`{"loginId":"fixture-login","success":true,"error":null,"onboardingEntrypoint":"future-entrypoint"}`),
+	} {
+		t.Run(name, func(t *testing.T) {
+			future := authTimestamp(time.Now().Add(time.Minute))
+			adapter := &Adapter{
+				auth: providerAuthState{Operation: &storedAuthOperation{Operation: providerauth.Operation{
+					OperationID: "30000000-0000-4000-8000-000000000001", Status: "pending", TimeoutAt: &future,
+				}}},
+				authCompletions: make(map[string]accountLoginCompleted),
+			}
+			if !adapter.handleProviderAuthNotification(rpcNotification{Method: "account/login/completed", Params: params}) {
+				t.Fatal("provider auth notification was not consumed")
+			}
+			time.Sleep(10 * time.Millisecond)
+			adapter.authMu.Lock()
+			defer adapter.authMu.Unlock()
+			if len(adapter.authCompletions) != 0 {
+				t.Fatalf("non-pinned completion reached auth state: %+v", adapter.authCompletions)
+			}
+		})
 	}
 }
 

@@ -241,7 +241,7 @@ func (node *Node) HealthReady(ctx context.Context, trust TrustContext) Result {
 		return node.errorResult(http.StatusServiceUnavailable, "not_durable", "identity response is invalid", "", nil, "")
 	}
 	readiness := state.EngineReadiness
-	reasons := append([]string(nil), state.BlockedReasons...)
+	reasons := append(make([]string, 0, len(state.BlockedReasons)), state.BlockedReasons...)
 	if !node.providerAuthReady(ctx) {
 		readiness = "blocked"
 		reasons = addReason(reasons, "auth_unavailable")

@@ -52,9 +52,10 @@ type providerAuthState struct {
 }
 
 type accountLoginCompleted struct {
-	LoginID *string `json:"loginId"`
-	Success bool    `json:"success"`
-	Error   *string `json:"error"`
+	LoginID              *string `json:"loginId"`
+	Success              bool    `json:"success"`
+	Error                *string `json:"error"`
+	OnboardingEntrypoint *string `json:"onboardingEntrypoint"`
 }
 
 type accountReadResponse struct {
@@ -277,6 +278,7 @@ func (adapter *Adapter) Check(ctx context.Context, nodeID, commandID string) (pr
 	}
 	const action = "check"
 	adapter.authMu.Lock()
+	adapter.expireProviderAuthLocked(time.Now())
 	if envelope, failure, found := adapter.authReceiptLocked(commandID, action); found {
 		adapter.authMu.Unlock()
 		return envelope, failure
@@ -301,6 +303,7 @@ func (adapter *Adapter) Check(ctx context.Context, nodeID, commandID string) (pr
 	err := adapter.session.Call(ctx, "account/read", map[string]bool{"refreshToken": true}, &response)
 	adapter.authMu.Lock()
 	adapter.authBusy = false
+	adapter.expireProviderAuthLocked(time.Now())
 	if err != nil {
 		adapter.auth.State = "unknown"
 		adapter.auth.CheckedAt = nil
@@ -467,7 +470,8 @@ func (adapter *Adapter) handleProviderAuthNotification(notification rpcNotificat
 		return false
 	}
 	var completion accountLoginCompleted
-	if !decodeStrict(notification.Params, &completion) || completion.LoginID == nil || !boundedSessionText(*completion.LoginID, 512) {
+	if !decodeStrict(notification.Params, &completion) || completion.LoginID == nil || !boundedSessionText(*completion.LoginID, 512) ||
+		completion.OnboardingEntrypoint == nil || *completion.OnboardingEntrypoint != "life_sciences" {
 		return true
 	}
 	go adapter.completeProviderLogin(completion)
@@ -477,6 +481,7 @@ func (adapter *Adapter) handleProviderAuthNotification(notification rpcNotificat
 func (adapter *Adapter) completeProviderLogin(completion accountLoginCompleted) {
 	loginID := *completion.LoginID
 	adapter.authMu.Lock()
+	adapter.expireProviderAuthLocked(time.Now())
 	operation := adapter.auth.Operation
 	if operation == nil || operation.ProviderLoginID != loginID {
 		if operation != nil && operation.Status == "pending" && operation.ProviderLoginID == "" && len(adapter.authCompletions) < 4 {
@@ -501,6 +506,7 @@ func (adapter *Adapter) completeProviderLogin(completion accountLoginCompleted) 
 	err := adapter.session.Call(ctx, "account/read", map[string]bool{"refreshToken": true}, &response)
 	adapter.authMu.Lock()
 	defer adapter.authMu.Unlock()
+	adapter.expireProviderAuthLocked(time.Now())
 	operation = adapter.auth.Operation
 	if operation == nil || operation.OperationID != operationID || operation.ProviderLoginID != loginID {
 		return
