@@ -236,7 +236,7 @@ func sandboxSelfTest(workspace string, systemReadRoots []string) error {
 			return errors.New("restricted path remained readable")
 		}
 	}
-	for _, path := range []string{"/auth", "/config", "/state"} {
+	for _, path := range []string{"/auth", "/config", "/state", "/provider-auth"} {
 		if _, err := os.Stat(path); err == nil {
 			if file, openErr := os.Open(path); openErr == nil {
 				file.Close()

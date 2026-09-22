@@ -1407,6 +1407,7 @@ func testAdapterConfig(t *testing.T, timeout time.Duration) Config {
 		t.Fatal(err)
 	}
 	return Config{
+		NodeID:     "10000000-0000-4000-8000-000000000001",
 		Executable: executable, Arguments: []string{"-test.run=^TestCodexAdapterHelperProcess$"},
 		VersionArguments: []string{"-test.run=^TestCodexVersionHelperProcess$"},
 		Environment: []string{
@@ -1522,6 +1523,8 @@ func runAdapterHelper() int {
 	activeExplicit := false
 	activeWorkspace := ""
 	activeFeatures := map[string]any{}
+	authenticated := false
+	pendingLoginID := ""
 	for scanner.Scan() {
 		var frame rpcFrame
 		if json.Unmarshal(scanner.Bytes(), &frame) != nil {
@@ -1608,6 +1611,45 @@ func runAdapterHelper() int {
 			_ = encoder.Encode(map[string]any{"id": frame.ID, "result": initializeResponse{
 				UserAgent: validSessionUserAgent(), CodexHome: "/private/tmp/codex-adapter-fixture", PlatformFamily: "unix", PlatformOS: "test",
 			}})
+		case "account/read":
+			var request struct {
+				RefreshToken bool `json:"refreshToken"`
+			}
+			if json.Unmarshal(frame.Params, &request) != nil {
+				return 15
+			}
+			if request.RefreshToken && authenticated && os.Getenv("CODEX_AUTH_FAIL_REFRESH_AFTER_LOGIN") == "1" {
+				_ = encoder.Encode(map[string]any{"id": frame.ID, "error": map[string]any{"code": -32000, "message": "refresh failed"}})
+				continue
+			}
+			var account any
+			if authenticated {
+				account = map[string]any{"type": "chatgpt", "email": "fixture@example.invalid", "planType": "unknown"}
+			}
+			_ = encoder.Encode(map[string]any{"id": frame.ID, "result": map[string]any{"account": account, "requiresOpenaiAuth": true}})
+		case "account/login/start":
+			pendingLoginID = "fixture-login-1"
+			_ = encoder.Encode(map[string]any{"id": frame.ID, "result": map[string]any{
+				"type": "chatgptDeviceCode", "loginId": pendingLoginID,
+				"verificationUrl": "https://auth.openai.com/codex/device", "userCode": "FIXT-URE1",
+			}})
+			if os.Getenv("CODEX_AUTH_NO_COMPLETE") != "1" {
+				authenticated = true
+				_ = encoder.Encode(map[string]any{"method": "account/login/completed", "params": map[string]any{"loginId": pendingLoginID, "success": true, "error": nil}})
+			}
+		case "account/login/cancel":
+			status := "notFound"
+			if pendingLoginID != "" {
+				status = "canceled"
+				pendingLoginID = ""
+			}
+			if os.Getenv("CODEX_AUTH_CANCEL_AUTHENTICATES") == "1" {
+				authenticated = true
+			}
+			_ = encoder.Encode(map[string]any{"id": frame.ID, "result": map[string]any{"status": status}})
+		case "account/logout":
+			authenticated = false
+			_ = encoder.Encode(map[string]any{"id": frame.ID, "result": map[string]any{}})
 		case "thread/start":
 			var params nativeThreadOptions
 			if json.Unmarshal(frame.Params, &params) != nil || !validHelperPolicy(params) || params.ThreadID != "" {

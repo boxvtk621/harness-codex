@@ -183,6 +183,9 @@ func (node *Node) Admission(ctx context.Context, trust TrustContext) Result {
 			History:           true, DurableReceipts: true, ScopedQuiesce: true, OwnershipRelease: true,
 		},
 	}
+	if !node.providerAuthReady(ctx) {
+		profile.Readiness = "blocked"
+	}
 	return node.wireResult("admissionProfile", profile)
 }
 
@@ -201,6 +204,10 @@ func (node *Node) ExecutorHeartbeat(ctx context.Context, trust TrustContext) Res
 	if err != nil {
 		return node.errorResult(http.StatusServiceUnavailable, "not_durable", "executor heartbeat is unavailable", "", nil, "")
 	}
+	readiness := state.EngineReadiness
+	if !node.providerAuthReady(ctx) {
+		readiness = "blocked"
+	}
 	body, err := json.Marshal(struct {
 		NodeID     string `json:"nodeId"`
 		BootID     string `json:"bootId"`
@@ -208,7 +215,7 @@ func (node *Node) ExecutorHeartbeat(ctx context.Context, trust TrustContext) Res
 		Health     string `json:"health"`
 		Readiness  string `json:"readiness"`
 		Capacity   int    `json:"capacity"`
-	}{node.config.NodeID, node.bootID, node.executorHeartbeatAt(), "live", state.EngineReadiness, QueueCapacity})
+	}{node.config.NodeID, node.bootID, node.executorHeartbeatAt(), "live", readiness, QueueCapacity})
 	if err != nil {
 		return node.errorResult(http.StatusServiceUnavailable, "not_durable", "executor heartbeat is unavailable", "", nil, "")
 	}
@@ -233,5 +240,11 @@ func (node *Node) HealthReady(ctx context.Context, trust TrustContext) Result {
 	if json.Unmarshal(identityResult.Body, &identity) != nil {
 		return node.errorResult(http.StatusServiceUnavailable, "not_durable", "identity response is invalid", "", nil, "")
 	}
-	return node.wireResult("healthReady", harnessprotocol.HealthReady{ProtocolVersion: harnessprotocol.ProtocolVersion, SchemaID: harnessprotocol.SchemaID, CheckedAt: timestamp(node.config.Clock()), Identity: identity, Readiness: state.EngineReadiness, BlockedReasons: state.BlockedReasons})
+	readiness := state.EngineReadiness
+	reasons := append([]string(nil), state.BlockedReasons...)
+	if !node.providerAuthReady(ctx) {
+		readiness = "blocked"
+		reasons = addReason(reasons, "auth_unavailable")
+	}
+	return node.wireResult("healthReady", harnessprotocol.HealthReady{ProtocolVersion: harnessprotocol.ProtocolVersion, SchemaID: harnessprotocol.SchemaID, CheckedAt: timestamp(node.config.Clock()), Identity: identity, Readiness: readiness, BlockedReasons: reasons})
 }

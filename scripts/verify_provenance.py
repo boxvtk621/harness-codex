@@ -36,6 +36,19 @@ LOCAL_ADDITIONS = {
     "runtime/tool_timeline_test.go",
 }
 
+# Repository-native provider authentication was designed and implemented here;
+# these files were not extracted from the pinned monorepo source.
+LOCAL_DESTINATIONS = {
+    "adapters/codex/provider_auth.go",
+    "adapters/codex/provider_auth_test.go",
+    "api/check-provider-auth-v1.mjs",
+    "api/provider-auth-v1.schema.json",
+    "api/provider_auth_test.go",
+    "internal/providerauth/types.go",
+    "runtime/provider_auth.go",
+    "runtime/provider_auth_internal_test.go",
+}
+
 
 def digest(data):
     return hashlib.sha256(data).hexdigest()
@@ -98,7 +111,7 @@ def destination_map():
         for path in sorted((ROOT / destination_root).rglob("*")):
             if path.is_file():
                 relative = path.relative_to(ROOT).as_posix()
-                if relative in LOCAL_ADDITIONS:
+                if relative in LOCAL_DESTINATIONS or relative in LOCAL_ADDITIONS:
                     continue
                 suffix = path.relative_to(ROOT / destination_root).as_posix()
                 result[relative] = f"{source_root}/{suffix}"
@@ -106,7 +119,7 @@ def destination_map():
         if not path.is_file():
             continue
         relative = path.relative_to(ROOT).as_posix()
-        if relative in LOCAL_ADDITIONS:
+        if relative in LOCAL_DESTINATIONS or relative in LOCAL_ADDITIONS:
             continue
         result[relative] = ("harness/server/" + path.name) if path.name in {"server.go", "server_test.go"} else ("api/" + path.name)
     # The consumer package is deliberately not imported. Its narrowly scoped
