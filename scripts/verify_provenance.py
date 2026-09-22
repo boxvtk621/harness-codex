@@ -25,6 +25,16 @@ EXCLUSIONS = (
     ("scripts/harness-probe", "historical feasibility probes are not runtime dependencies"),
     ("deploy", "deployment/release topology is not transferred; Dockerfile.codex is adapted separately"),
 )
+LOCAL_ADDITIONS = {
+    "api/check-dialog-tool-v1.mjs",
+    "api/dialog-view-v1.schema.json",
+    "api/tool-timeline-v1.schema.json",
+    "internal/dialogview/types.go",
+    "internal/tooltimeline/types.go",
+    "runtime/dialog_view.go",
+    "runtime/tool_timeline.go",
+    "runtime/tool_timeline_test.go",
+}
 
 
 def digest(data):
@@ -88,12 +98,16 @@ def destination_map():
         for path in sorted((ROOT / destination_root).rglob("*")):
             if path.is_file():
                 relative = path.relative_to(ROOT).as_posix()
+                if relative in LOCAL_ADDITIONS:
+                    continue
                 suffix = path.relative_to(ROOT / destination_root).as_posix()
                 result[relative] = f"{source_root}/{suffix}"
     for path in sorted((ROOT / "api").glob("*")):
         if not path.is_file():
             continue
         relative = path.relative_to(ROOT).as_posix()
+        if relative in LOCAL_ADDITIONS:
+            continue
         result[relative] = ("harness/server/" + path.name) if path.name in {"server.go", "server_test.go"} else ("api/" + path.name)
     # The consumer package is deliberately not imported. Its narrowly scoped
     # Private HTTP behavior is adapted into a test-local client instead.

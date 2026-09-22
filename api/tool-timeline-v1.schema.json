@@ -1,0 +1,63 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://homelab.local/schemas/tool-timeline-v1.schema.json",
+  "title": "Harness public tool timeline v1",
+  "oneOf": [
+    { "$ref": "#/$defs/page" },
+    { "$ref": "#/$defs/read" }
+  ],
+  "$defs": {
+    "uuid": { "type": "string", "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$" },
+    "timestamp": { "type": "string", "format": "date-time" },
+    "safeContent": {
+      "oneOf": [
+        { "type": "object", "additionalProperties": false, "required": ["kind", "content", "redaction", "truncated"], "properties": { "kind": { "const": "inline" }, "content": { "type": "string", "maxLength": 65536, "x-utf8MaxBytes": 65536 }, "redaction": { "enum": ["none", "applied"] }, "truncated": { "type": "boolean" } } },
+        { "type": "object", "additionalProperties": false, "required": ["kind", "artifactId", "sizeBytes", "sha256", "redaction", "truncated"], "properties": { "kind": { "const": "artifact" }, "artifactId": { "$ref": "#/$defs/uuid" }, "sizeBytes": { "type": "integer", "minimum": 0, "maximum": 16777216 }, "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }, "redaction": { "enum": ["none", "applied"] }, "truncated": { "type": "boolean" } } },
+        { "type": "object", "additionalProperties": false, "required": ["kind", "reason", "redaction", "truncated"], "properties": { "kind": { "const": "unavailable" }, "reason": { "enum": ["not_observed", "provider_redacted", "output_limit", "unmapped"] }, "redaction": { "enum": ["none", "applied", "unknown"] }, "truncated": { "type": "boolean" } } }
+      ]
+    },
+    "summaryProperties": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["toolCallId", "toolName", "state", "startedAt", "detailVersion"],
+      "properties": {
+        "toolCallId": { "$ref": "#/$defs/uuid" }, "toolName": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "state": { "enum": ["running", "succeeded", "failed", "unknown"] }, "startedAt": { "$ref": "#/$defs/timestamp" },
+        "finishedAt": { "$ref": "#/$defs/timestamp" }, "detailVersion": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 }
+      }
+    },
+    "page": {
+      "type": "object", "additionalProperties": false,
+      "required": ["protocolVersion", "schemaId", "nodeId", "epoch", "snapshotStateVersion", "lastEventSeq", "dialogId", "requestId", "attemptId", "items", "nextCursor", "pageType"],
+      "properties": {
+        "protocolVersion": { "const": 1 }, "schemaId": { "const": "tool-timeline-v1" }, "nodeId": { "$ref": "#/$defs/uuid" }, "epoch": { "type": "integer", "minimum": 1 },
+        "snapshotStateVersion": { "type": "integer", "minimum": 0 }, "lastEventSeq": { "type": "integer", "minimum": 0 }, "dialogId": { "$ref": "#/$defs/uuid" },
+        "requestId": { "$ref": "#/$defs/uuid" }, "attemptId": { "$ref": "#/$defs/uuid" }, "items": { "type": "array", "maxItems": 100, "items": { "$ref": "#/$defs/summaryProperties" } },
+        "nextCursor": { "type": ["string", "null"], "maxLength": 4096 }, "pageType": { "const": "tool_calls" }
+      }
+    },
+    "output": {
+      "type": "object", "additionalProperties": false, "required": ["index", "stream", "content", "observedAt"],
+      "properties": { "index": { "type": "integer", "minimum": 0 }, "stream": { "enum": ["stdout", "stderr", "result", "diagnostic"] }, "content": { "$ref": "#/$defs/safeContent" }, "observedAt": { "$ref": "#/$defs/timestamp" } }
+    },
+    "detail": {
+      "type": "object", "additionalProperties": false,
+      "required": ["toolCallId", "toolName", "state", "startedAt", "detailVersion", "input", "outputs", "nextOutputCursor"],
+      "properties": {
+        "toolCallId": { "$ref": "#/$defs/uuid" }, "toolName": { "type": "string", "minLength": 1, "maxLength": 200 }, "state": { "enum": ["running", "succeeded", "failed", "unknown"] },
+        "startedAt": { "$ref": "#/$defs/timestamp" }, "finishedAt": { "$ref": "#/$defs/timestamp" }, "detailVersion": { "type": "integer", "minimum": 1 },
+        "input": { "$ref": "#/$defs/safeContent" }, "result": { "$ref": "#/$defs/safeContent" }, "outputs": { "type": "array", "maxItems": 100, "items": { "$ref": "#/$defs/output" } },
+        "nextOutputCursor": { "type": ["string", "null"], "maxLength": 32 }
+      }
+    },
+    "read": {
+      "type": "object", "additionalProperties": false,
+      "required": ["protocolVersion", "schemaId", "nodeId", "epoch", "stateVersion", "lastEventSeq", "dialogId", "requestId", "attemptId", "toolCall"],
+      "properties": {
+        "protocolVersion": { "const": 1 }, "schemaId": { "const": "tool-timeline-v1" }, "nodeId": { "$ref": "#/$defs/uuid" }, "epoch": { "type": "integer", "minimum": 1 },
+        "stateVersion": { "type": "integer", "minimum": 0 }, "lastEventSeq": { "type": "integer", "minimum": 0 }, "dialogId": { "$ref": "#/$defs/uuid" },
+        "requestId": { "$ref": "#/$defs/uuid" }, "attemptId": { "$ref": "#/$defs/uuid" }, "toolCall": { "$ref": "#/$defs/detail" }
+      }
+    }
+  }
+}

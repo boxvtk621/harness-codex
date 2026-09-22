@@ -36,11 +36,14 @@ func New(config Config, authority *node.Node) (http.Handler, error) {
 	mux.HandleFunc("GET /v1/nodes/{nodeId}/admission", server.admission)
 	mux.HandleFunc("GET /v1/nodes/{nodeId}/snapshot", server.snapshot)
 	mux.HandleFunc("GET /v1/nodes/{nodeId}/dialogs", server.dialogs)
+	mux.HandleFunc("GET /v1/nodes/{nodeId}/dialogs/{dialogId}", server.dialog)
 	mux.HandleFunc("GET /v1/nodes/{nodeId}/dialogs/{dialogId}/messages", server.history)
 	mux.HandleFunc("GET /v1/nodes/{nodeId}/dialogs/{dialogId}/history-export", server.historyExport)
 	mux.HandleFunc("GET /v1/nodes/{nodeId}/requests", server.requests)
 	mux.HandleFunc("GET /v1/nodes/{nodeId}/requests/{requestId}/attempts", server.attempts)
 	mux.HandleFunc("GET /v1/nodes/{nodeId}/attempts/{attemptId}", server.attempt)
+	mux.HandleFunc("GET /v1/nodes/{nodeId}/attempts/{attemptId}/tool-calls", server.toolCalls)
+	mux.HandleFunc("GET /v1/nodes/{nodeId}/attempts/{attemptId}/tool-calls/{toolCallId}", server.toolCall)
 	mux.HandleFunc("GET /v1/nodes/{nodeId}/attempts/{attemptId}/events", server.attemptEvents)
 	mux.HandleFunc("GET /v1/nodes/{nodeId}/artifacts/{artifactId}/metadata", server.artifactMetadata)
 	mux.HandleFunc("GET /v1/nodes/{nodeId}/artifacts/{artifactId}", server.artifact)
@@ -125,7 +128,7 @@ func (server *Server) dialogs(writer http.ResponseWriter, request *http.Request)
 	if !ok {
 		return
 	}
-	if !validQuery(request, "cursor", "limit") {
+	if !validQuery(request, "cursor", "limit", "view") {
 		writeResult(writer, server.node.Invalid("query is invalid"))
 		return
 	}
@@ -134,7 +137,28 @@ func (server *Server) dialogs(writer http.ResponseWriter, request *http.Request)
 		writeResult(writer, server.node.Invalid("limit is invalid"))
 		return
 	}
+	view := request.URL.Query().Get("view")
+	if view != "" && view != "activity" {
+		writeResult(writer, server.node.Invalid("dialog view is invalid"))
+		return
+	}
+	if view == "activity" {
+		writeResult(writer, server.node.DialogViews(request.Context(), trust, request.URL.Query().Get("cursor"), limit))
+		return
+	}
 	writeResult(writer, server.node.Dialogs(request.Context(), trust, request.URL.Query().Get("cursor"), limit))
+}
+
+func (server *Server) dialog(writer http.ResponseWriter, request *http.Request) {
+	trust, ok := server.authenticate(writer, request)
+	if !ok {
+		return
+	}
+	if !validQuery(request) {
+		writeResult(writer, server.node.Invalid("query is invalid"))
+		return
+	}
+	writeResult(writer, server.node.DialogView(request.Context(), trust, request.PathValue("dialogId")))
 }
 
 func (server *Server) history(writer http.ResponseWriter, request *http.Request) {
@@ -142,13 +166,22 @@ func (server *Server) history(writer http.ResponseWriter, request *http.Request)
 	if !ok {
 		return
 	}
-	if !validQuery(request, "cursor", "limit") {
+	if !validQuery(request, "cursor", "limit", "order") {
 		writeResult(writer, server.node.Invalid("query is invalid"))
 		return
 	}
 	limit, ok := queryLimit(request)
 	if !ok {
 		writeResult(writer, server.node.Invalid("limit is invalid"))
+		return
+	}
+	order := request.URL.Query().Get("order")
+	if order != "" && order != "latest" {
+		writeResult(writer, server.node.Invalid("history order is invalid"))
+		return
+	}
+	if order == "latest" {
+		writeResult(writer, server.node.HistoryLatest(request.Context(), trust, request.PathValue("dialogId"), request.URL.Query().Get("cursor"), limit))
 		return
 	}
 	writeResult(writer, server.node.History(request.Context(), trust, request.PathValue("dialogId"), request.URL.Query().Get("cursor"), limit))
@@ -191,13 +224,17 @@ func (server *Server) requests(writer http.ResponseWriter, request *http.Request
 	if !ok {
 		return
 	}
-	if !validQuery(request, "cursor", "limit", "state") {
+	if !validQuery(request, "cursor", "limit", "state", "dialogId") {
 		writeResult(writer, server.node.Invalid("query is invalid"))
 		return
 	}
 	limit, ok := queryLimit(request)
 	if !ok {
 		writeResult(writer, server.node.Invalid("limit is invalid"))
+		return
+	}
+	if dialogID := request.URL.Query().Get("dialogId"); dialogID != "" {
+		writeResult(writer, server.node.RequestsForDialog(request.Context(), trust, dialogID, request.URL.Query().Get("state"), request.URL.Query().Get("cursor"), limit))
 		return
 	}
 	writeResult(writer, server.node.Requests(request.Context(), trust, request.URL.Query().Get("state"), request.URL.Query().Get("cursor"), limit))
@@ -230,6 +267,49 @@ func (server *Server) attempt(writer http.ResponseWriter, request *http.Request)
 		return
 	}
 	writeResult(writer, server.node.Attempt(request.Context(), trust, request.PathValue("attemptId")))
+}
+
+func (server *Server) toolCalls(writer http.ResponseWriter, request *http.Request) {
+	trust, ok := server.authenticate(writer, request)
+	if !ok {
+		return
+	}
+	if !validQuery(request, "cursor", "limit") {
+		writeResult(writer, server.node.Invalid("query is invalid"))
+		return
+	}
+	limit, ok := queryLimit(request)
+	if !ok {
+		writeResult(writer, server.node.Invalid("limit is invalid"))
+		return
+	}
+	writeResult(writer, server.node.ToolCalls(request.Context(), trust, request.PathValue("attemptId"), request.URL.Query().Get("cursor"), limit))
+}
+
+func (server *Server) toolCall(writer http.ResponseWriter, request *http.Request) {
+	trust, ok := server.authenticate(writer, request)
+	if !ok {
+		return
+	}
+	if !validQuery(request, "after", "limit") {
+		writeResult(writer, server.node.Invalid("query is invalid"))
+		return
+	}
+	limit, ok := queryLimit(request)
+	if !ok {
+		writeResult(writer, server.node.Invalid("limit is invalid"))
+		return
+	}
+	after := int64(0)
+	if value := request.URL.Query().Get("after"); value != "" {
+		var valid bool
+		after, valid = parseSafeInteger(value)
+		if !valid {
+			writeResult(writer, server.node.Invalid("tool output cursor is invalid"))
+			return
+		}
+	}
+	writeResult(writer, server.node.ToolCall(request.Context(), trust, request.PathValue("attemptId"), request.PathValue("toolCallId"), after, limit))
 }
 
 func (server *Server) attemptEvents(writer http.ResponseWriter, request *http.Request) {

@@ -46,6 +46,12 @@ type pageCursor struct {
 	Scope        string `json:"p"`
 }
 
+type latestHistoryCursor struct {
+	Epoch          int64  `json:"e"`
+	BeforeSequence int64  `json:"b"`
+	Scope          string `json:"p"`
+}
+
 func encodeCursor(cursor pageCursor) *string {
 	encoded, _ := json.Marshal(cursor)
 	value := base64.RawURLEncoding.EncodeToString(encoded)
@@ -68,6 +74,27 @@ func decodeCursor(raw, scope string, state durableState) (int64, *commandFailure
 		return 0, &commandFailure{status: http.StatusConflict, code: "stale", message: "cursor snapshot is stale"}
 	}
 	return cursor.Offset, nil
+}
+
+func encodeLatestHistoryCursor(cursor latestHistoryCursor) *string {
+	encoded, _ := json.Marshal(cursor)
+	value := base64.RawURLEncoding.EncodeToString(encoded)
+	return &value
+}
+
+func decodeLatestHistoryCursor(raw, scope string, epoch int64) (int64, *commandFailure) {
+	if raw == "" {
+		return harnessprotocol.MaximumSafeInteger + 1, nil
+	}
+	decoded, err := base64.RawURLEncoding.DecodeString(raw)
+	if err != nil || len(decoded) > harnessprotocol.MaximumCursorBytes {
+		return 0, &commandFailure{status: http.StatusBadRequest, code: "invalid", message: "history cursor is invalid"}
+	}
+	var cursor latestHistoryCursor
+	if json.Unmarshal(decoded, &cursor) != nil || cursor.Epoch != epoch || cursor.Scope != scope || cursor.BeforeSequence < 1 || cursor.BeforeSequence > harnessprotocol.MaximumSafeInteger {
+		return 0, &commandFailure{status: http.StatusConflict, code: "stale", message: "history cursor is invalid or stale"}
+	}
+	return cursor.BeforeSequence, nil
 }
 
 func normalizedLimit(limit int) (int, bool) {
@@ -159,6 +186,93 @@ func (node *Node) History(ctx context.Context, trust TrustContext, dialogID, cur
 	return node.wireResult("historyPage", historyPage{ProtocolVersion: 1, SchemaID: harnessprotocol.SchemaID, NodeID: state.NodeID, Epoch: state.Epoch, SnapshotStateVersion: state.StateVersion, LastEventSeq: state.LastEventSeq, Items: items, NextCursor: next, PageType: "history", DialogID: dialogID})
 }
 
+// HistoryLatest returns the newest bounded window and then walks backwards by
+// immutable message sequence. New messages do not invalidate an older cursor.
+func (node *Node) HistoryLatest(ctx context.Context, trust TrustContext, dialogID, cursor string, limit int) Result {
+	if denied := node.authorizeRead(trust); denied != nil {
+		return *denied
+	}
+	limit, ok := normalizedLimit(limit)
+	if !ok {
+		return node.Invalid("limit is invalid")
+	}
+	node.mu.Lock()
+	defer node.mu.Unlock()
+	tx, err := node.db.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
+	if err != nil {
+		return node.errorResult(503, "not_durable", "history is unavailable", dialogID, nil, "")
+	}
+	defer tx.Rollback()
+	state, err := loadState(ctx, tx)
+	if err != nil {
+		return node.errorResult(503, "not_durable", "history is unavailable", dialogID, nil, "")
+	}
+	var exists int
+	if err := tx.QueryRowContext(ctx, `SELECT 1 FROM dialogs d WHERE d.dialog_id=? AND d.node_id=? AND d.owner_id=? AND NOT EXISTS (
+		SELECT 1 FROM events deleted WHERE deleted.dialog_id=d.dialog_id AND deleted.projection_key='dialog.deleted')`, dialogID, state.NodeID, state.OwnerID).Scan(&exists); err != nil {
+		if isNoRows(err) {
+			return node.errorResult(404, "not_found", "dialog was not found", dialogID, nil, "")
+		}
+		return node.errorResult(503, "not_durable", "history is unavailable", dialogID, nil, "")
+	}
+	scope := "history-latest:" + dialogID
+	before, failure := decodeLatestHistoryCursor(cursor, scope, state.Epoch)
+	if failure != nil {
+		return node.commandError(failure, dialogID)
+	}
+	rows, err := tx.QueryContext(ctx, `SELECT message_id,role,sequence,version,created_at,text,content_json,disposition,command_id,request_id,attempt_id,finish_reason FROM messages WHERE dialog_id=? AND sequence<? ORDER BY sequence DESC LIMIT ?`, dialogID, before, limit+1)
+	if err != nil {
+		return node.errorResult(503, "not_durable", "history is unavailable", dialogID, nil, "")
+	}
+	defer rows.Close()
+	items := make([]json.RawMessage, 0, limit)
+	sequences := make([]int64, 0, limit+1)
+	encodedBytes := 0
+	hasMore := false
+	for rows.Next() {
+		var messageID, role, createdAt string
+		var sequence, version int64
+		var text, disposition, commandID, requestID, attemptID, finishReason sql.NullString
+		var content []byte
+		if err := rows.Scan(&messageID, &role, &sequence, &version, &createdAt, &text, &content, &disposition, &commandID, &requestID, &attemptID, &finishReason); err != nil {
+			return node.errorResult(503, "not_durable", "history is unavailable", dialogID, nil, "")
+		}
+		var item any
+		switch role {
+		case "user":
+			item = harnessprotocol.UserHistoryItem{MessageID: messageID, Role: role, DialogID: dialogID, Sequence: sequence, Version: version, CreatedAt: createdAt, Text: text.String, Disposition: disposition.String, CommandID: commandID.String, RequestID: requestID.String}
+		case "assistant":
+			var safe harnessprotocol.SafeContent
+			if len(content) == 0 || json.Unmarshal(content, &safe) != nil {
+				return node.errorResult(503, "not_durable", "history content is unavailable", dialogID, nil, "")
+			}
+			item = harnessprotocol.AssistantHistoryItem{MessageID: messageID, Role: role, DialogID: dialogID, Sequence: sequence, Version: version, CreatedAt: createdAt, AttemptID: attemptID.String, Content: safe, FinishReason: finishReason.String}
+		default:
+			return node.errorResult(503, "not_durable", "history role is invalid", dialogID, nil, "")
+		}
+		encoded, err := json.Marshal(item)
+		if err != nil {
+			return node.errorResult(503, "not_durable", "history is unavailable", dialogID, nil, "")
+		}
+		if len(items) == limit || encodedBytes+len(encoded) > harnessprotocol.MaximumWireBytes-4096 {
+			hasMore = true
+			break
+		}
+		items = append(items, encoded)
+		sequences = append(sequences, sequence)
+		encodedBytes += len(encoded)
+	}
+	if err := rows.Err(); err != nil {
+		return node.errorResult(503, "not_durable", "history is unavailable", dialogID, nil, "")
+	}
+	var next *string
+	if hasMore && len(sequences) > 0 {
+		next = encodeLatestHistoryCursor(latestHistoryCursor{Epoch: state.Epoch, BeforeSequence: sequences[len(sequences)-1], Scope: scope})
+	}
+	slices.Reverse(items)
+	return node.wireResult("historyPage", historyPage{ProtocolVersion: 1, SchemaID: harnessprotocol.SchemaID, NodeID: state.NodeID, Epoch: state.Epoch, SnapshotStateVersion: state.StateVersion, LastEventSeq: state.LastEventSeq, Items: items, NextCursor: next, PageType: "history", DialogID: dialogID})
+}
+
 func (node *Node) Dialogs(ctx context.Context, trust TrustContext, cursor string, limit int) Result {
 	if denied := node.authorizeRead(trust); denied != nil {
 		return *denied
@@ -212,6 +326,17 @@ func (node *Node) Dialogs(ctx context.Context, trust TrustContext, cursor string
 }
 
 func (node *Node) Requests(ctx context.Context, trust TrustContext, stateFilter, cursor string, limit int) Result {
+	return node.requests(ctx, trust, "", stateFilter, cursor, limit)
+}
+
+func (node *Node) RequestsForDialog(ctx context.Context, trust TrustContext, dialogID, stateFilter, cursor string, limit int) Result {
+	if !uuidPattern.MatchString(dialogID) {
+		return node.Invalid("dialog id is invalid")
+	}
+	return node.requests(ctx, trust, dialogID, stateFilter, cursor, limit)
+}
+
+func (node *Node) requests(ctx context.Context, trust TrustContext, dialogID, stateFilter, cursor string, limit int) Result {
 	if denied := node.authorizeRead(trust); denied != nil {
 		return *denied
 	}
@@ -231,7 +356,7 @@ func (node *Node) Requests(ctx context.Context, trust TrustContext, stateFilter,
 	if err != nil {
 		return node.errorResult(503, "not_durable", "requests are unavailable", "", nil, "")
 	}
-	scope := "requests:" + stateFilter
+	scope := "requests:" + dialogID + ":" + stateFilter
 	offset, failure := decodeCursor(cursor, scope, state)
 	if failure != nil {
 		return node.commandError(failure, "")
@@ -239,6 +364,10 @@ func (node *Node) Requests(ctx context.Context, trust TrustContext, stateFilter,
 	query := `SELECT r.request_id,r.dialog_id,r.input_message_id,r.queue_sequence,r.version,r.status FROM requests r JOIN dialogs d ON d.dialog_id=r.dialog_id WHERE d.node_id=? AND d.owner_id=? AND NOT EXISTS (
 		SELECT 1 FROM events deleted WHERE deleted.dialog_id=d.dialog_id AND deleted.projection_key='dialog.deleted')`
 	arguments := []any{state.NodeID, state.OwnerID}
+	if dialogID != "" {
+		query += " AND r.dialog_id=?"
+		arguments = append(arguments, dialogID)
+	}
 	if stateFilter != "" {
 		query += " AND r.status=?"
 		arguments = append(arguments, stateFilter)

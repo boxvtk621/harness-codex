@@ -21,10 +21,12 @@ import (
 
 	"github.com/boxvtk621/harness-codex/api"
 	"github.com/boxvtk621/harness-codex/fixture"
+	"github.com/boxvtk621/harness-codex/internal/dialogview"
 	"github.com/boxvtk621/harness-codex/internal/harnessadapter"
 	"github.com/boxvtk621/harness-codex/internal/harnessbarrier"
 	"github.com/boxvtk621/harness-codex/internal/harnessprotocol"
 	"github.com/boxvtk621/harness-codex/internal/logicaldelete"
+	"github.com/boxvtk621/harness-codex/internal/tooltimeline"
 	"github.com/boxvtk621/harness-codex/internal/transcriptview"
 	"github.com/boxvtk621/harness-codex/runtime"
 )
@@ -136,6 +138,20 @@ func TestRealTLSCommandsAndReadsWithoutInboundAuthorization(t *testing.T) {
 	if err := json.Unmarshal(enqueueReceipt.References, &message); err != nil {
 		t.Fatal(err)
 	}
+	activity := request(t, client, http.MethodGet, endpoint.URL+"/v1/nodes/"+testNodeID+"/dialogs?view=activity&limit=10", "", "1-1")
+	var activityPage dialogview.Page
+	if status := int(activity[0])<<8 | int(activity[1]); status != http.StatusOK || json.Unmarshal(activity[2:], &activityPage) != nil || len(activityPage.Items) != 1 || activityPage.Items[0].State != "queued" {
+		t.Fatalf("dialog activity endpoint failed: status=%d body=%s", status, activity[2:])
+	}
+	readDialog := request(t, client, http.MethodGet, endpoint.URL+"/v1/nodes/"+testNodeID+"/dialogs/"+created.DialogID, "", "1-1")
+	var dialogRead dialogview.Read
+	if status := int(readDialog[0])<<8 | int(readDialog[1]); status != http.StatusOK || json.Unmarshal(readDialog[2:], &dialogRead) != nil || dialogRead.Dialog.DialogID != created.DialogID {
+		t.Fatalf("dialog read endpoint failed: status=%d body=%s", status, readDialog[2:])
+	}
+	latest := request(t, client, http.MethodGet, endpoint.URL+"/v1/nodes/"+testNodeID+"/dialogs/"+created.DialogID+"/messages?order=latest&limit=10", "", "1-1")
+	validateResponse(t, latest, http.StatusOK, "historyPage")
+	filtered := request(t, client, http.MethodGet, endpoint.URL+"/v1/nodes/"+testNodeID+"/requests?dialogId="+created.DialogID+"&limit=10", "", "1-1")
+	validateResponse(t, filtered, http.StatusOK, "requestPage")
 	dispatched, err := authority.DispatchNext(context.Background())
 	if err != nil || dispatched.AttemptID == "" {
 		t.Fatalf("dispatch failed: %+v err=%v", dispatched, err)
@@ -153,6 +169,24 @@ func TestRealTLSCommandsAndReadsWithoutInboundAuthorization(t *testing.T) {
 		time.Sleep(time.Millisecond)
 	}
 	reference := harnessadapter.AttemptRef{NodeID: testNodeID, DialogID: created.DialogID, RequestID: message.RequestID, AttemptID: dispatched.AttemptID, Generation: 1}
+	callID := "40000000-0000-4000-8000-000000000090"
+	toolContent := harnessprotocol.SafeContent{Kind: "inline", Content: "safe", Redaction: "none"}
+	if err := authority.ObserveAdapterEvent(context.Background(), reference, harnessadapter.ToolStartedEvent{EventBase: harnessadapter.EventBase{Attempt: reference}, CallID: callID, ToolName: "fixture.echo", ActionHash: strings.Repeat("a", 64), Input: toolContent}); err != nil {
+		t.Fatal(err)
+	}
+	if err := authority.ObserveAdapterEvent(context.Background(), reference, harnessadapter.ToolCompletedEvent{EventBase: harnessadapter.EventBase{Attempt: reference}, CallID: callID, Status: "succeeded", Result: toolContent, EffectStatus: "none"}); err != nil {
+		t.Fatal(err)
+	}
+	tools := request(t, client, http.MethodGet, endpoint.URL+"/v1/nodes/"+testNodeID+"/attempts/"+dispatched.AttemptID+"/tool-calls?limit=10", "", "1-1")
+	var toolPage tooltimeline.Page
+	if status := int(tools[0])<<8 | int(tools[1]); status != http.StatusOK || json.Unmarshal(tools[2:], &toolPage) != nil || len(toolPage.Items) != 1 || toolPage.Items[0].ToolCallID != callID {
+		t.Fatalf("tool timeline endpoint failed: status=%d body=%s", status, tools[2:])
+	}
+	tool := request(t, client, http.MethodGet, endpoint.URL+"/v1/nodes/"+testNodeID+"/attempts/"+dispatched.AttemptID+"/tool-calls/"+callID+"?limit=10", "", "1-1")
+	var toolRead tooltimeline.DetailRead
+	if status := int(tool[0])<<8 | int(tool[1]); status != http.StatusOK || json.Unmarshal(tool[2:], &toolRead) != nil || toolRead.ToolCall.ToolCallID != callID || toolRead.ToolCall.Result == nil {
+		t.Fatalf("tool detail endpoint failed: status=%d body=%s", status, tool[2:])
+	}
 	messageID := "40000000-0000-4000-8000-000000000091"
 	fullText := strings.Repeat("x", transcriptview.MaximumPreview+17)
 	if err := authority.ObserveAdapterEvent(context.Background(), reference, harnessadapter.AssistantMessageEvent{
