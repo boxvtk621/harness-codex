@@ -304,6 +304,13 @@ func (session *nativeSession) Wait() error {
 	return <-instance.wait
 }
 
+func (session *nativeSession) suppressedStderrBytes() uint64 {
+	session.mu.Lock()
+	instance := session.bridge
+	session.mu.Unlock()
+	return instance.suppressedStderrBytes()
+}
+
 func (session *nativeSession) availableBridge() (*bridge, bool) {
 	session.mu.Lock()
 	defer session.mu.Unlock()

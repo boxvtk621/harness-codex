@@ -6,6 +6,7 @@ import (
 	"errors"
 	"slices"
 
+	"github.com/boxvtk621/harness-codex/internal/diagnosticlog"
 	"github.com/boxvtk621/harness-codex/internal/harnessadapter"
 )
 
@@ -122,5 +123,12 @@ func (node *Node) recoverStartup(ctx context.Context) error {
 	if err := saveState(ctx, tx, state); err != nil {
 		return err
 	}
-	return tx.Commit()
+	if err := tx.Commit(); err != nil {
+		return err
+	}
+	node.config.Logger.Emit(diagnosticlog.LevelWarn, diagnosticlog.EventRuntimeRecovered, diagnosticlog.Fields{
+		NodeID: reference.NodeID, DialogID: reference.DialogID, RequestID: reference.RequestID, AttemptID: reference.AttemptID,
+		Generation: reference.Generation, Outcome: "unknown", Reason: "dispatch_uncertain",
+	})
+	return nil
 }

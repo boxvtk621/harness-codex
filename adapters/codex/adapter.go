@@ -16,6 +16,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/boxvtk621/harness-codex/internal/diagnosticlog"
 	"github.com/boxvtk621/harness-codex/internal/harnessadapter"
 	"github.com/boxvtk621/harness-codex/internal/harnessprotocol"
 	"github.com/boxvtk621/harness-codex/internal/toolrunner"
@@ -96,6 +97,7 @@ type Config struct {
 	OperationTimeout time.Duration
 	MaxFrameBytes    int
 	Runner           toolrunner.Runner
+	Logger           diagnosticlog.Sink
 }
 
 type nativeAttempt struct {
@@ -207,6 +209,9 @@ func New(config Config, artifacts node.ArtifactSink) (*Adapter, error) {
 	if config.MaxFrameBytes < 4096 || config.MaxFrameBytes > harnessprotocol.MaximumWireBytes {
 		return nil, errors.New("codex app-server frame limit is invalid")
 	}
+	if config.Logger == nil {
+		config.Logger = diagnosticlog.Nop()
+	}
 	store, err := openMappingStore(config.StateDir)
 	if err != nil {
 		return nil, err
@@ -233,6 +238,9 @@ func New(config Config, artifacts node.ArtifactSink) (*Adapter, error) {
 		return nil, err
 	}
 	adapter.session = session
+	adapter.config.Logger.Emit(diagnosticlog.LevelInfo, diagnosticlog.EventProviderReady, diagnosticlog.Fields{
+		NodeID: config.NodeID, ProcessGeneration: session.ProcessGeneration(),
+	})
 	if err := adapter.initializeProviderAuth(ctx); err != nil {
 		_ = session.Close()
 		_ = session.Wait()
