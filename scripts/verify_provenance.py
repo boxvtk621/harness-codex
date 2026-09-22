@@ -26,6 +26,7 @@ EXCLUSIONS = (
     ("deploy", "deployment/release topology is not transferred; Dockerfile.codex is adapted separately"),
 )
 LOCAL_ADDITIONS = {
+    "api/diagnostic_log_test.go",
     "api/check-dialog-tool-v1.mjs",
     "api/dialog-view-v1.schema.json",
     "api/tool-timeline-v1.schema.json",

@@ -11,6 +11,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/boxvtk621/harness-codex/internal/diagnosticlog"
 	"github.com/boxvtk621/harness-codex/internal/harnessadapter"
 	"github.com/boxvtk621/harness-codex/internal/harnessprotocol"
 	"github.com/boxvtk621/harness-codex/internal/providerauth"
@@ -68,6 +69,7 @@ type Config struct {
 	StartupFault    func(StartupPoint) error
 	Artifacts       *ArtifactIngress
 	ProviderAuth    providerauth.Manager
+	Logger          diagnosticlog.Sink
 	// ManualDispatchForTesting keeps deterministic fixture setup under direct
 	// DispatchNext control. Production configuration must leave it false.
 	ManualDispatchForTesting bool
@@ -90,6 +92,9 @@ func (config *Config) defaults() error {
 	}
 	if config.Artifacts == nil {
 		config.Artifacts = NewArtifactIngress()
+	}
+	if config.Logger == nil {
+		config.Logger = diagnosticlog.Nop()
 	}
 	return nil
 }

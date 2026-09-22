@@ -53,6 +53,14 @@ type bridge struct {
 	stopOne sync.Once
 	nextID  atomic.Int64
 	stopErr error
+	stderr  *byteCounter
+}
+
+type byteCounter struct{ total atomic.Uint64 }
+
+func (counter *byteCounter) Write(value []byte) (int, error) {
+	counter.total.Add(uint64(len(value)))
+	return len(value), nil
 }
 
 func startBridge(config bridgeConfig, onNotice func(rpcNotification), onRequest func(rpcServerRequest), onExit func()) (*bridge, error) {
@@ -70,12 +78,13 @@ func startBridge(config bridgeConfig, onNotice func(rpcNotification), onRequest 
 	if err != nil {
 		return nil, err
 	}
-	command.Stderr = io.Discard
+	stderr := &byteCounter{}
+	command.Stderr = stderr
 	instance := &bridge{
 		cmd: command, stdin: stdin, maximum: config.MaxFrameBytes,
 		onNotice: onNotice, onRequest: onRequest, onExit: onExit,
 		pending: make(map[string]chan rpcResponse), inbound: make(map[string]rpcID),
-		done: make(chan struct{}), wait: make(chan error, 1),
+		done: make(chan struct{}), wait: make(chan error, 1), stderr: stderr,
 	}
 	if err := command.Start(); err != nil {
 		return nil, fmt.Errorf("start codex app-server: %w", err)
@@ -94,6 +103,13 @@ func startBridge(config bridgeConfig, onNotice func(rpcNotification), onRequest 
 		close(instance.wait)
 	}()
 	return instance, nil
+}
+
+func (bridge *bridge) suppressedStderrBytes() uint64 {
+	if bridge == nil || bridge.stderr == nil {
+		return 0
+	}
+	return bridge.stderr.total.Load()
 }
 
 func (bridge *bridge) call(ctx context.Context, method string, params any, result any) error {

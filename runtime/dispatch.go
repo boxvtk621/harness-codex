@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 
+	"github.com/boxvtk621/harness-codex/internal/diagnosticlog"
 	"github.com/boxvtk621/harness-codex/internal/harnessadapter"
 	"github.com/boxvtk621/harness-codex/internal/harnessprotocol"
 )
@@ -152,6 +153,9 @@ func (node *Node) DispatchNext(ctx context.Context) (DispatchResult, error) {
 	if err := tx.Commit(); err != nil {
 		return DispatchResult{}, err
 	}
+	node.config.Logger.Emit(diagnosticlog.LevelInfo, diagnosticlog.EventAttemptDispatch, diagnosticlog.Fields{
+		NodeID: state.NodeID, DialogID: currentDialog, RequestID: currentRequest, AttemptID: attemptID, Generation: generation,
+	})
 	if err := node.checkFault(FaultAfterDispatchIntent); err != nil {
 		return DispatchResult{Outcome: "unknown", AttemptID: attemptID, RequestID: currentRequest}, err
 	}

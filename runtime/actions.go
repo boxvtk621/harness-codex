@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/boxvtk621/harness-codex/internal/diagnosticlog"
 	"github.com/boxvtk621/harness-codex/internal/harnessadapter"
 	"github.com/boxvtk621/harness-codex/internal/harnessprotocol"
 )
@@ -359,7 +360,14 @@ func (node *Node) markStarted(ctx context.Context, reference harnessadapter.Atte
 	if err := saveState(ctx, tx, state); err != nil {
 		return err
 	}
-	return tx.Commit()
+	if err := tx.Commit(); err != nil {
+		return err
+	}
+	node.config.Logger.Emit(diagnosticlog.LevelInfo, diagnosticlog.EventAttemptStarted, diagnosticlog.Fields{
+		NodeID: reference.NodeID, DialogID: reference.DialogID, RequestID: reference.RequestID,
+		AttemptID: reference.AttemptID, Generation: reference.Generation,
+	})
+	return nil
 }
 
 func actionStatus(outcome harnessadapter.ResponseOutcome) string {

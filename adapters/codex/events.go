@@ -11,6 +11,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/boxvtk621/harness-codex/internal/diagnosticlog"
 	"github.com/boxvtk621/harness-codex/internal/harnessadapter"
 	"github.com/boxvtk621/harness-codex/internal/harnessprotocol"
 	"github.com/boxvtk621/harness-codex/internal/toolrunner"
@@ -265,6 +266,10 @@ func (adapter *Adapter) handleDynamicToolRequest(request rpcServerRequest) {
 		return
 	}
 	if startedByRequest {
+		adapter.config.Logger.Emit(diagnosticlog.LevelInfo, diagnosticlog.EventToolStarted, diagnosticlog.Fields{
+			NodeID: native.reference.NodeID, DialogID: native.reference.DialogID, RequestID: native.reference.RequestID,
+			AttemptID: native.reference.AttemptID, CallID: tool.callID, Generation: native.reference.Generation, Tool: tool.toolName,
+		})
 		native.runtime.push(harnessadapter.ToolStartedEvent{
 			EventBase: harnessadapter.EventBase{Attempt: native.reference},
 			CallID:    tool.callID, ToolName: tool.toolName, ActionHash: tool.actionHash, Input: tool.input,
@@ -754,6 +759,10 @@ func (adapter *Adapter) handleDynamicToolItem(native *nativeAttempt, method stri
 		native.runtime.push(harnessadapter.ToolStartedEvent{
 			EventBase: base, CallID: tool.callID, ToolName: tool.toolName, ActionHash: tool.actionHash, Input: tool.input,
 		})
+		adapter.config.Logger.Emit(diagnosticlog.LevelInfo, diagnosticlog.EventToolStarted, diagnosticlog.Fields{
+			NodeID: native.reference.NodeID, DialogID: native.reference.DialogID, RequestID: native.reference.RequestID,
+			AttemptID: native.reference.AttemptID, CallID: tool.callID, Generation: native.reference.Generation, Tool: tool.toolName,
+		})
 		return
 	}
 	if method != "item/completed" || (item.Status != "completed" && item.Status != "failed") || item.Success == nil || (item.DurationMS != nil && *item.DurationMS < 0) {
@@ -800,6 +809,11 @@ func (adapter *Adapter) handleDynamicToolItem(native *nativeAttempt, method stri
 	native.runtime.push(harnessadapter.ToolCompletedEvent{
 		EventBase: base, CallID: state.callID, Status: status, Result: result, EffectStatus: effectStatus, EffectRef: effectRef,
 		FullText: state.fullSafeOutput, FullTextIncomplete: state.fullIncomplete,
+	})
+	adapter.config.Logger.Emit(diagnosticlog.LevelInfo, diagnosticlog.EventToolCompleted, diagnosticlog.Fields{
+		NodeID: native.reference.NodeID, DialogID: native.reference.DialogID, RequestID: native.reference.RequestID,
+		AttemptID: native.reference.AttemptID, CallID: state.callID, Generation: native.reference.Generation,
+		Tool: state.toolName, Outcome: status, EffectStatus: effectStatus, Truncated: state.outputTruncated || state.fullIncomplete,
 	})
 	adapter.confirmAttemptApprovals(native, item.ID)
 	if effectStatus == "unknown" {
@@ -1201,7 +1215,19 @@ func (adapter *Adapter) finish(native *nativeAttempt, status string) {
 	_ = adapter.store.terminal(native.reference)
 }
 
-func (adapter *Adapter) handleExit() { adapter.failActive("provider_state") }
+func (adapter *Adapter) handleExit() {
+	adapter.mu.Lock()
+	closed := adapter.closed
+	adapter.mu.Unlock()
+	level, outcome := diagnosticlog.LevelError, "unexpected"
+	if closed {
+		level, outcome = diagnosticlog.LevelInfo, "stopped"
+	}
+	adapter.config.Logger.Emit(level, diagnosticlog.EventProviderExited, diagnosticlog.Fields{
+		NodeID: adapter.config.NodeID, Outcome: outcome, Count: adapter.session.suppressedStderrBytes(),
+	})
+	adapter.failActive("provider_state")
+}
 
 func (adapter *Adapter) failActive(reason string) {
 	adapter.mu.Lock()

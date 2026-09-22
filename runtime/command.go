@@ -7,7 +7,9 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"time"
 
+	"github.com/boxvtk621/harness-codex/internal/diagnosticlog"
 	"github.com/boxvtk621/harness-codex/internal/harnessprotocol"
 )
 
@@ -40,8 +42,23 @@ type postCommitAction struct {
 
 // SubmitCommand is the only durable command admission entry point. TrustContext
 // carries routing and fencing data only, never caller identity.
-func (node *Node) SubmitCommand(ctx context.Context, trust TrustContext, raw []byte) Result {
+func (node *Node) SubmitCommand(ctx context.Context, trust TrustContext, raw []byte) (response Result) {
+	started := time.Now()
 	correlation := bestEffortCommandID(raw)
+	kind := ""
+	duplicate := false
+	defer func() {
+		event, level := diagnosticlog.EventCommandRejected, diagnosticlog.LevelWarn
+		if duplicate {
+			event, level = diagnosticlog.EventCommandDuplicate, diagnosticlog.LevelInfo
+		} else if response.Committed {
+			event, level = diagnosticlog.EventCommandAccepted, diagnosticlog.LevelInfo
+		}
+		node.config.Logger.Emit(level, event, diagnosticlog.Fields{
+			NodeID: node.config.NodeID, CommandID: correlation, Operation: kind,
+			Outcome: fmt.Sprintf("http_%d", response.HTTPStatus), DurationMS: time.Since(started).Milliseconds(),
+		})
+	}()
 	if trust.TransportNodeID != node.config.NodeID {
 		return node.errorResult(http.StatusNotFound, "not_found", "node was not found", correlation, nil, "")
 	}
@@ -54,6 +71,7 @@ func (node *Node) SubmitCommand(ctx context.Context, trust TrustContext, raw []b
 		return node.errorResult(http.StatusBadRequest, "invalid", "command cannot be decoded", correlation, nil, "")
 	}
 	correlation = envelope.CommandID
+	kind = string(envelope.Kind)
 	if envelope.Kind == harnessprotocol.CommandDialogDelete {
 		return node.errorResult(http.StatusForbidden, "forbidden", "dialog deletion requires the logical delete coordinator", correlation, nil, "")
 	}
@@ -91,6 +109,7 @@ func (node *Node) SubmitCommand(ctx context.Context, trust TrustContext, raw []b
 		} else if deleted {
 			return node.errorResult(http.StatusNotFound, "not_found", "command was not found", correlation, nil, "")
 		}
+		duplicate = true
 		return Result{HTTPStatus: outcome.status, Body: outcome.body}
 	}
 	if err := node.authorizeObject(ctx, tx, envelope); err != nil {
@@ -176,7 +195,7 @@ func (node *Node) SubmitCommand(ctx context.Context, trust TrustContext, raw []b
 	if err := node.checkFault(FaultAfterCommit); err != nil {
 		return Result{HTTPStatus: http.StatusServiceUnavailable, Body: node.errorResult(http.StatusServiceUnavailable, "node_unavailable", "receipt delivery was interrupted", correlation, nil, "").Body, Committed: true}
 	}
-	response := Result{HTTPStatus: http.StatusAccepted, Body: receiptJSON, Committed: true}
+	response = Result{HTTPStatus: http.StatusAccepted, Body: receiptJSON, Committed: true}
 	return response
 }
 
@@ -233,6 +252,9 @@ func bestEffortCommandID(raw []byte) string {
 		CommandID string `json:"commandId"`
 	}
 	_ = json.Unmarshal(raw, &envelope)
+	if !uuidPattern.MatchString(envelope.CommandID) {
+		return ""
+	}
 	return envelope.CommandID
 }
 
@@ -241,7 +263,9 @@ func (node *Node) commandError(err error, correlation string) Result {
 	if errors.As(err, &failure) {
 		return node.errorResult(failure.status, failure.code, failure.message, correlation, failure.currentVersion, failure.currentState)
 	}
-	fmt.Printf("command failure: %v\n", err)
+	// Raw errors may contain storage paths, provider output or content. Emit
+	// only the stable classification and correlation identifier.
+	node.config.Logger.Emit(diagnosticlog.LevelError, diagnosticlog.EventCommandFailed, diagnosticlog.Fields{NodeID: node.config.NodeID, Reason: "not_durable", CommandID: correlation})
 	return node.errorResult(http.StatusServiceUnavailable, "not_durable", "durable operation failed", correlation, nil, "")
 }
 

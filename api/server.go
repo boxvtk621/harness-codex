@@ -9,8 +9,10 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
+	"github.com/boxvtk621/harness-codex/internal/diagnosticlog"
 	"github.com/boxvtk621/harness-codex/internal/harnessbarrier"
 	"github.com/boxvtk621/harness-codex/internal/harnessprotocol"
 	"github.com/boxvtk621/harness-codex/internal/historyreplica"
@@ -21,11 +23,15 @@ import (
 
 type Config struct {
 	NodeID string
+	Logger diagnosticlog.Sink
 }
 
 func New(config Config, authority *node.Node) (http.Handler, error) {
 	if authority == nil || config.NodeID == "" || authority.NodeID() != config.NodeID {
 		return nil, errors.New("server config is incomplete")
+	}
+	if config.Logger == nil {
+		config.Logger = diagnosticlog.Nop()
 	}
 	server := &Server{config: config, node: authority}
 	mux := http.NewServeMux()
@@ -88,7 +94,9 @@ func (server *Server) providerAuth(writer http.ResponseWriter, request *http.Req
 		writeResult(writer, providerAuthErrorResult(http.StatusBadRequest, "invalid_request"))
 		return
 	}
-	writeResult(writer, server.node.ProviderAuthSnapshot(request.Context(), request.URL.Query().Get("nodeId")))
+	result := server.node.ProviderAuthSnapshot(request.Context(), request.URL.Query().Get("nodeId"))
+	server.logAuthResult(result, "snapshot", "", "")
+	writeResult(writer, result)
 }
 
 func (server *Server) providerAuthOperation(writer http.ResponseWriter, request *http.Request) {
@@ -100,7 +108,9 @@ func (server *Server) providerAuthOperation(writer http.ResponseWriter, request 
 		writeResult(writer, providerAuthErrorResult(http.StatusBadRequest, "invalid_request"))
 		return
 	}
-	writeResult(writer, server.node.ProviderAuthOperation(request.Context(), request.URL.Query().Get("nodeId"), request.PathValue("operationId")))
+	result := server.node.ProviderAuthOperation(request.Context(), request.URL.Query().Get("nodeId"), request.PathValue("operationId"))
+	server.logAuthResult(result, "operation", "", request.PathValue("operationId"))
+	writeResult(writer, result)
 }
 
 func (server *Server) providerAuthStart(writer http.ResponseWriter, request *http.Request) {
@@ -129,7 +139,9 @@ func (server *Server) providerAuthStart(writer http.ResponseWriter, request *htt
 		}
 		secret = &value
 	}
-	writeResult(writer, server.node.ProviderAuthStart(request.Context(), input.NodeID, input.CommandID, input.Method, secret))
+	result := server.node.ProviderAuthStart(request.Context(), input.NodeID, input.CommandID, input.Method, secret)
+	server.logAuthResult(result, input.Method, input.CommandID, "")
+	writeResult(writer, result)
 }
 
 func (server *Server) providerAuthCheck(writer http.ResponseWriter, request *http.Request) {
@@ -158,10 +170,14 @@ func (server *Server) providerAuthCommand(writer http.ResponseWriter, request *h
 		return
 	}
 	if action == "check" {
-		writeResult(writer, server.node.ProviderAuthCheck(request.Context(), input.NodeID, input.CommandID))
+		result := server.node.ProviderAuthCheck(request.Context(), input.NodeID, input.CommandID)
+		server.logAuthResult(result, action, input.CommandID, "")
+		writeResult(writer, result)
 		return
 	}
-	writeResult(writer, server.node.ProviderAuthLogout(request.Context(), input.NodeID, input.CommandID))
+	result := server.node.ProviderAuthLogout(request.Context(), input.NodeID, input.CommandID)
+	server.logAuthResult(result, action, input.CommandID, "")
+	writeResult(writer, result)
 }
 
 func (server *Server) providerAuthCancel(writer http.ResponseWriter, request *http.Request) {
@@ -182,7 +198,9 @@ func (server *Server) providerAuthCancel(writer http.ResponseWriter, request *ht
 		writeResult(writer, providerAuthErrorResult(http.StatusBadRequest, "invalid_request"))
 		return
 	}
-	writeResult(writer, server.node.ProviderAuthCancel(request.Context(), input.NodeID, input.CommandID, request.PathValue("operationId")))
+	result := server.node.ProviderAuthCancel(request.Context(), input.NodeID, input.CommandID, request.PathValue("operationId"))
+	server.logAuthResult(result, "cancel", input.CommandID, request.PathValue("operationId"))
+	writeResult(writer, result)
 }
 
 func decodeProviderAuthJSON(writer http.ResponseWriter, request *http.Request, output any) bool {
@@ -723,13 +741,100 @@ func (server *Server) events(writer http.ResponseWriter, request *http.Request) 
 }
 
 type Server struct {
-	config  Config
-	node    *node.Node
-	handler http.Handler
+	config        Config
+	node          *node.Node
+	handler       http.Handler
+	logMu         sync.Mutex
+	lastAuth      map[string]string
+	lastReadiness string
 }
 
 func (server *Server) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
 	server.handler.ServeHTTP(writer, request)
+}
+
+func (server *Server) logAuthResult(result node.Result, action, commandID, operationID string) {
+	var envelope providerauth.Envelope
+	if result.HTTPStatus >= http.StatusBadRequest || json.Unmarshal(result.Body, &envelope) != nil {
+		if !server.authTransition(operationID, commandID+":"+action, string(diagnosticlog.EventProviderAuthFailed)+":rejected") {
+			return
+		}
+		server.config.Logger.Emit(diagnosticlog.LevelWarn, diagnosticlog.EventProviderAuthFailed, diagnosticlog.Fields{
+			NodeID: server.config.NodeID, CommandID: commandID, OperationID: operationID, Operation: action,
+			Outcome: "rejected", Reason: "http_failure",
+		})
+		return
+	}
+	event, outcome := diagnosticlog.EventProviderAuthCompleted, string(envelope.State)
+	if action == "logout" {
+		event = diagnosticlog.EventProviderAuthLogout
+	}
+	if envelope.Operation != nil {
+		commandID, operationID, outcome = envelope.Operation.CommandID, envelope.Operation.OperationID, envelope.Operation.Status
+		switch envelope.Operation.Status {
+		case "pending":
+			event = diagnosticlog.EventProviderAuthStarted
+		case "cancelled":
+			event = diagnosticlog.EventProviderAuthCancelled
+		case "expired":
+			event = diagnosticlog.EventProviderAuthExpired
+		case "failed":
+			event = diagnosticlog.EventProviderAuthFailed
+		}
+	}
+	source := operationID
+	if source == "" {
+		source = action
+	}
+	state := string(event) + ":" + outcome
+	if !server.authTransition(source, action, state) {
+		return
+	}
+	server.config.Logger.Emit(diagnosticlog.LevelInfo, event, diagnosticlog.Fields{
+		NodeID: envelope.NodeID, CommandID: commandID, OperationID: operationID, Operation: action, Outcome: outcome,
+	})
+}
+
+func (server *Server) authTransition(source, fallback, state string) bool {
+	if source == "" {
+		source = fallback
+	}
+	server.logMu.Lock()
+	defer server.logMu.Unlock()
+	if server.lastAuth == nil {
+		server.lastAuth = make(map[string]string)
+	}
+	if state == server.lastAuth[source] {
+		return false
+	}
+	if _, known := server.lastAuth[source]; !known && len(server.lastAuth) >= 4096 {
+		return false
+	}
+	server.lastAuth[source] = state
+	return true
+}
+
+func (server *Server) logReadiness(result node.Result) {
+	var health harnessprotocol.HealthReady
+	if (result.HTTPStatus != http.StatusOK && result.HTTPStatus != http.StatusServiceUnavailable) || json.Unmarshal(result.Body, &health) != nil ||
+		(health.Readiness != "ready" && health.Readiness != "blocked" && health.Readiness != "unknown") {
+		return
+	}
+	reason := ""
+	if len(health.BlockedReasons) > 0 {
+		reason = health.BlockedReasons[0]
+	}
+	key := health.Readiness + ":" + reason
+	server.logMu.Lock()
+	if key == server.lastReadiness {
+		server.logMu.Unlock()
+		return
+	}
+	server.lastReadiness = key
+	server.logMu.Unlock()
+	server.config.Logger.Emit(diagnosticlog.LevelInfo, diagnosticlog.EventReadinessChanged, diagnosticlog.Fields{
+		NodeID: server.config.NodeID, Outcome: health.Readiness, Reason: reason,
+	})
 }
 
 func (server *Server) authenticate(writer http.ResponseWriter, request *http.Request) (node.TrustContext, bool) {
@@ -851,7 +956,9 @@ func (server *Server) ready(writer http.ResponseWriter, request *http.Request) {
 		writeResult(writer, server.node.Invalid("query is invalid"))
 		return
 	}
-	writeResult(writer, server.node.HealthReady(request.Context(), trust))
+	result := server.node.HealthReady(request.Context(), trust)
+	server.logReadiness(result)
+	writeResult(writer, result)
 }
 
 func (server *Server) identity(writer http.ResponseWriter, request *http.Request) {

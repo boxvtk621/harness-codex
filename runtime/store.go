@@ -10,6 +10,7 @@ import (
 	"sync"
 	"syscall"
 
+	"github.com/boxvtk621/harness-codex/internal/diagnosticlog"
 	"github.com/boxvtk621/harness-codex/internal/harnessadapter"
 	_ "modernc.org/sqlite"
 )
@@ -168,6 +169,7 @@ func Open(ctx context.Context, config Config) (*Node, error) {
 	}
 	node.workerStarted = true
 	go node.actionLoop(workerContext)
+	node.config.Logger.Emit(diagnosticlog.LevelInfo, diagnosticlog.EventRuntimeOpened, diagnosticlog.Fields{NodeID: node.config.NodeID})
 	return node, nil
 }
 
@@ -176,6 +178,12 @@ func (node *Node) Runtime() RuntimeInfo { return node.runtime }
 func (node *Node) SetFaultInjector(injector FaultInjector) { node.fault = injector }
 
 func (node *Node) Close() error {
+	if node == nil || node.db == nil {
+		return nil
+	}
+	if node.config.Logger != nil {
+		defer node.config.Logger.Emit(diagnosticlog.LevelInfo, diagnosticlog.EventRuntimeClosed, diagnosticlog.Fields{NodeID: node.config.NodeID})
+	}
 	if node.stop != nil {
 		node.stop()
 		if node.workerStarted {
