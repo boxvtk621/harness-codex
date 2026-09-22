@@ -14,6 +14,7 @@ import (
 	"github.com/boxvtk621/harness-codex/internal/harnessbarrier"
 	"github.com/boxvtk621/harness-codex/internal/harnessprotocol"
 	"github.com/boxvtk621/harness-codex/internal/historyreplica"
+	"github.com/boxvtk621/harness-codex/internal/providerauth"
 	"github.com/boxvtk621/harness-codex/internal/transcriptview"
 	"github.com/boxvtk621/harness-codex/runtime"
 )
@@ -31,6 +32,12 @@ func New(config Config, authority *node.Node) (http.Handler, error) {
 	mux.HandleFunc("GET /health/live", server.live)
 	mux.HandleFunc("GET /health/ready", server.ready)
 	mux.HandleFunc("GET /v1/identity", server.identity)
+	mux.HandleFunc("GET /v1/provider-auth", server.providerAuth)
+	mux.HandleFunc("POST /v1/provider-auth/check", server.providerAuthCheck)
+	mux.HandleFunc("POST /v1/provider-auth/operations", server.providerAuthStart)
+	mux.HandleFunc("GET /v1/provider-auth/operations/{operationId}", server.providerAuthOperation)
+	mux.HandleFunc("POST /v1/provider-auth/operations/{operationId}/cancel", server.providerAuthCancel)
+	mux.HandleFunc("POST /v1/provider-auth/logout", server.providerAuthLogout)
 	mux.HandleFunc("GET /v1/executor/heartbeat", server.executorHeartbeat)
 	mux.HandleFunc("GET /v1/nodes/{nodeId}/identity", server.identity)
 	mux.HandleFunc("GET /v1/nodes/{nodeId}/admission", server.admission)
@@ -56,6 +63,143 @@ func New(config Config, authority *node.Node) (http.Handler, error) {
 	mux.HandleFunc("GET /v1/nodes/{nodeId}/administration/logical-deletes/{operationId}", server.logicalDeleteStatus)
 	server.handler = mux
 	return server, nil
+}
+
+type providerAuthCommandRequest struct {
+	NodeID    string `json:"nodeId"`
+	CommandID string `json:"commandId"`
+}
+
+type providerAuthStartRequest struct {
+	NodeID    string          `json:"nodeId"`
+	CommandID string          `json:"commandId"`
+	Method    string          `json:"method"`
+	Secret    json.RawMessage `json:"secret,omitempty"`
+}
+
+func (server *Server) providerAuth(writer http.ResponseWriter, request *http.Request) {
+	if _, ok := server.authenticate(writer, request); !ok {
+		return
+	}
+	if !validQuery(request, "nodeId") || !providerauth.UUIDPattern.MatchString(request.URL.Query().Get("nodeId")) {
+		writeResult(writer, providerAuthErrorResult(http.StatusBadRequest, "invalid_request"))
+		return
+	}
+	writeResult(writer, server.node.ProviderAuthSnapshot(request.Context(), request.URL.Query().Get("nodeId")))
+}
+
+func (server *Server) providerAuthOperation(writer http.ResponseWriter, request *http.Request) {
+	if _, ok := server.authenticate(writer, request); !ok {
+		return
+	}
+	if !validQuery(request, "nodeId") || !providerauth.UUIDPattern.MatchString(request.URL.Query().Get("nodeId")) ||
+		!providerauth.UUIDPattern.MatchString(request.PathValue("operationId")) {
+		writeResult(writer, providerAuthErrorResult(http.StatusBadRequest, "invalid_request"))
+		return
+	}
+	writeResult(writer, server.node.ProviderAuthOperation(request.Context(), request.URL.Query().Get("nodeId"), request.PathValue("operationId")))
+}
+
+func (server *Server) providerAuthStart(writer http.ResponseWriter, request *http.Request) {
+	if _, ok := server.authenticate(writer, request); !ok {
+		return
+	}
+	if !validQuery(request) {
+		writeResult(writer, providerAuthErrorResult(http.StatusBadRequest, "invalid_request"))
+		return
+	}
+	var input providerAuthStartRequest
+	if !decodeProviderAuthJSON(writer, request, &input) {
+		writeResult(writer, providerAuthErrorResult(http.StatusBadRequest, "invalid_request"))
+		return
+	}
+	if !providerauth.UUIDPattern.MatchString(input.NodeID) || !providerauth.UUIDPattern.MatchString(input.CommandID) || input.Method == "" {
+		writeResult(writer, providerAuthErrorResult(http.StatusBadRequest, "invalid_request"))
+		return
+	}
+	var secret *string
+	if len(input.Secret) > 0 {
+		var value string
+		if json.Unmarshal(input.Secret, &value) != nil || value == "" {
+			writeResult(writer, providerAuthErrorResult(http.StatusBadRequest, "invalid_request"))
+			return
+		}
+		secret = &value
+	}
+	writeResult(writer, server.node.ProviderAuthStart(request.Context(), input.NodeID, input.CommandID, input.Method, secret))
+}
+
+func (server *Server) providerAuthCheck(writer http.ResponseWriter, request *http.Request) {
+	server.providerAuthCommand(writer, request, "check")
+}
+
+func (server *Server) providerAuthLogout(writer http.ResponseWriter, request *http.Request) {
+	server.providerAuthCommand(writer, request, "logout")
+}
+
+func (server *Server) providerAuthCommand(writer http.ResponseWriter, request *http.Request, action string) {
+	if _, ok := server.authenticate(writer, request); !ok {
+		return
+	}
+	if !validQuery(request) {
+		writeResult(writer, providerAuthErrorResult(http.StatusBadRequest, "invalid_request"))
+		return
+	}
+	var input providerAuthCommandRequest
+	if !decodeProviderAuthJSON(writer, request, &input) {
+		writeResult(writer, providerAuthErrorResult(http.StatusBadRequest, "invalid_request"))
+		return
+	}
+	if !providerauth.UUIDPattern.MatchString(input.NodeID) || !providerauth.UUIDPattern.MatchString(input.CommandID) {
+		writeResult(writer, providerAuthErrorResult(http.StatusBadRequest, "invalid_request"))
+		return
+	}
+	if action == "check" {
+		writeResult(writer, server.node.ProviderAuthCheck(request.Context(), input.NodeID, input.CommandID))
+		return
+	}
+	writeResult(writer, server.node.ProviderAuthLogout(request.Context(), input.NodeID, input.CommandID))
+}
+
+func (server *Server) providerAuthCancel(writer http.ResponseWriter, request *http.Request) {
+	if _, ok := server.authenticate(writer, request); !ok {
+		return
+	}
+	if !validQuery(request) {
+		writeResult(writer, providerAuthErrorResult(http.StatusBadRequest, "invalid_request"))
+		return
+	}
+	var input providerAuthCommandRequest
+	if !decodeProviderAuthJSON(writer, request, &input) {
+		writeResult(writer, providerAuthErrorResult(http.StatusBadRequest, "invalid_request"))
+		return
+	}
+	if !providerauth.UUIDPattern.MatchString(input.NodeID) || !providerauth.UUIDPattern.MatchString(input.CommandID) ||
+		!providerauth.UUIDPattern.MatchString(request.PathValue("operationId")) {
+		writeResult(writer, providerAuthErrorResult(http.StatusBadRequest, "invalid_request"))
+		return
+	}
+	writeResult(writer, server.node.ProviderAuthCancel(request.Context(), input.NodeID, input.CommandID, request.PathValue("operationId")))
+}
+
+func decodeProviderAuthJSON(writer http.ResponseWriter, request *http.Request, output any) bool {
+	if contentType, _, err := mime.ParseMediaType(request.Header.Get("Content-Type")); err != nil || contentType != "application/json" {
+		return false
+	}
+	reader := http.MaxBytesReader(writer, request.Body, 64<<10)
+	decoder := json.NewDecoder(reader)
+	decoder.DisallowUnknownFields()
+	if decoder.Decode(output) != nil {
+		return false
+	}
+	return decoder.Decode(new(any)) == io.EOF
+}
+
+func providerAuthErrorResult(status int, code string) node.Result {
+	body, _ := json.Marshal(struct {
+		Code string `json:"code"`
+	}{Code: code})
+	return node.Result{HTTPStatus: status, Body: body}
 }
 
 func queryLimit(request *http.Request) (int, bool) {

@@ -84,6 +84,7 @@ var deniedNativeFeatures = []string{
 // owned by the dedicated CODEX_HOME supplied in Environment; no API token is
 // accepted by this adapter.
 type Config struct {
+	NodeID           string
 	Executable       string
 	Arguments        []string
 	VersionArguments []string
@@ -172,6 +173,11 @@ type Adapter struct {
 	approvalByRPC map[string]string
 	toolCallSlots chan struct{}
 	closed        bool
+
+	authMu          sync.Mutex
+	auth            providerAuthState
+	authBusy        bool
+	authCompletions map[string]accountLoginCompleted
 }
 
 var _ harnessadapter.Adapter = (*Adapter)(nil)
@@ -182,7 +188,8 @@ func New(config Config, artifacts node.ArtifactSink) (*Adapter, error) {
 	if config.Executable == "" || strings.ContainsAny(config.Executable, "\x00\r\n") ||
 		config.StateDir == "" || !filepath.IsAbs(config.StateDir) || config.WorkingDir == "" || !filepath.IsAbs(config.WorkingDir) ||
 		!boundedText(config.Model) || !validEffort(config.Effort) || invalidEnvironment(config.Environment) ||
-		!homeOK || !codexHomeOK || home == codexHome {
+		!homeOK || !codexHomeOK || home == codexHome || pathsOverlap(config.WorkingDir, home) ||
+		pathsOverlap(config.WorkingDir, codexHome) || pathsOverlap(config.WorkingDir, config.StateDir) {
 		return nil, errors.New("codex adapter config is incomplete")
 	}
 	if len(config.Arguments) == 0 {
@@ -209,7 +216,8 @@ func New(config Config, artifacts node.ArtifactSink) (*Adapter, error) {
 		attempts: make(map[string]*nativeAttempt), byThread: make(map[string]*nativeAttempt),
 		byTurn: make(map[string]*nativeAttempt), inputs: make(map[string]*pendingInput), inputByRPC: make(map[string]string),
 		approvals: make(map[string]*pendingApproval), approvalByRPC: make(map[string]string),
-		toolCallSlots: make(chan struct{}, maximumToolCalls),
+		toolCallSlots:   make(chan struct{}, maximumToolCalls),
+		authCompletions: make(map[string]accountLoginCompleted),
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), config.OperationTimeout)
 	defer cancel()
@@ -225,6 +233,11 @@ func New(config Config, artifacts node.ArtifactSink) (*Adapter, error) {
 		return nil, err
 	}
 	adapter.session = session
+	if err := adapter.initializeProviderAuth(ctx); err != nil {
+		_ = session.Close()
+		_ = session.Wait()
+		return nil, err
+	}
 	return adapter, nil
 }
 

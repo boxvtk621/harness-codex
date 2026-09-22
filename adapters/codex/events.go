@@ -113,6 +113,9 @@ type nativeErrorNotice struct {
 }
 
 func (adapter *Adapter) handleNotification(notification rpcNotification) {
+	if adapter.handleProviderAuthNotification(notification) {
+		return
+	}
 	switch notification.Method {
 	case "turn/started":
 		var params nativeTurnNotice

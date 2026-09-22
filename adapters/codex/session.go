@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
@@ -162,6 +163,47 @@ func sameFilesystemPath(first, second string) bool {
 	canonicalFirst, firstErr := filepath.EvalSymlinks(first)
 	canonicalSecond, secondErr := filepath.EvalSymlinks(second)
 	return firstErr == nil && secondErr == nil && canonicalFirst == canonicalSecond
+}
+
+func pathsOverlap(first, second string) bool {
+	overlaps := func(left, right string) bool {
+		left, right = filepath.Clean(left), filepath.Clean(right)
+		if left == right {
+			return true
+		}
+		relative, err := filepath.Rel(left, right)
+		return err == nil && relative != ".." && !strings.HasPrefix(relative, ".."+string(filepath.Separator))
+	}
+	if overlaps(first, second) || overlaps(second, first) {
+		return true
+	}
+	canonicalFirst, firstOK := canonicalPathThroughExistingAncestor(first)
+	canonicalSecond, secondOK := canonicalPathThroughExistingAncestor(second)
+	return firstOK && secondOK &&
+		(overlaps(canonicalFirst, canonicalSecond) || overlaps(canonicalSecond, canonicalFirst))
+}
+
+func canonicalPathThroughExistingAncestor(path string) (string, bool) {
+	candidate := filepath.Clean(path)
+	missing := make([]string, 0, 4)
+	for {
+		canonical, err := filepath.EvalSymlinks(candidate)
+		if err == nil {
+			for index := len(missing) - 1; index >= 0; index-- {
+				canonical = filepath.Join(canonical, missing[index])
+			}
+			return filepath.Clean(canonical), true
+		}
+		if !errors.Is(err, os.ErrNotExist) {
+			return "", false
+		}
+		parent := filepath.Dir(candidate)
+		if parent == candidate {
+			return "", false
+		}
+		missing = append(missing, filepath.Base(candidate))
+		candidate = parent
+	}
 }
 
 func exactEnvironmentPath(environment []string, wanted string) (string, bool) {

@@ -24,6 +24,7 @@ import (
 	"github.com/boxvtk621/harness-codex/adapters/codex"
 	harnessserver "github.com/boxvtk621/harness-codex/api"
 	"github.com/boxvtk621/harness-codex/internal/harnessadapter"
+	"github.com/boxvtk621/harness-codex/internal/providerauth"
 	"github.com/boxvtk621/harness-codex/internal/toolrunner"
 	runtime "github.com/boxvtk621/harness-codex/runtime"
 )
@@ -62,6 +63,7 @@ type codexConfig struct {
 
 type providerAdapter interface {
 	harnessadapter.Adapter
+	providerauth.Manager
 	Close() error
 }
 
@@ -278,6 +280,7 @@ func serve(ctx context.Context, path string) error {
 	authority, err := runtime.Open(ctx, runtime.Config{
 		DataDir: cfg.DataDir, NodeID: cfg.NodeID, OwnerID: cfg.OwnerID,
 		RegistryVersion: cfg.RegistryVersion, Adapter: adapter, Policies: policies, Artifacts: artifacts,
+		ProviderAuth:             adapter,
 		ManualDispatchForTesting: cfg.ManualDispatchForTesting,
 	})
 	if err != nil {
@@ -431,6 +434,7 @@ func openProviderAdapter(ctx context.Context, cfg config, artifacts runtime.Arti
 		}
 	}
 	return codex.New(codex.Config{
+		NodeID:     cfg.NodeID,
 		Executable: cfg.Codex.Executable, Environment: []string{
 			"HOME=" + cfg.Codex.HomeDir,
 			"CODEX_HOME=" + cfg.Codex.CodexHome,

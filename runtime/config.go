@@ -13,6 +13,7 @@ import (
 
 	"github.com/boxvtk621/harness-codex/internal/harnessadapter"
 	"github.com/boxvtk621/harness-codex/internal/harnessprotocol"
+	"github.com/boxvtk621/harness-codex/internal/providerauth"
 )
 
 var uuidPattern = regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$`)
@@ -66,6 +67,7 @@ type Config struct {
 	Space           SpaceProbe
 	StartupFault    func(StartupPoint) error
 	Artifacts       *ArtifactIngress
+	ProviderAuth    providerauth.Manager
 	// ManualDispatchForTesting keeps deterministic fixture setup under direct
 	// DispatchNext control. Production configuration must leave it false.
 	ManualDispatchForTesting bool

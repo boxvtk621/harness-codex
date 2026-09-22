@@ -27,6 +27,12 @@ type dispatchCandidate struct {
 }
 
 func (node *Node) DispatchNext(ctx context.Context) (DispatchResult, error) {
+	if node.config.ProviderAuth != nil {
+		envelope, failure := node.config.ProviderAuth.Snapshot(ctx, node.config.NodeID)
+		if failure != nil || envelope.State != "authenticated" || (envelope.Operation != nil && envelope.Operation.Status == "pending") {
+			return DispatchResult{Outcome: "blocked"}, nil
+		}
+	}
 	candidate, err := node.peekDispatch(ctx)
 	if err != nil || candidate == nil {
 		return DispatchResult{Outcome: "idle"}, err
@@ -46,6 +52,13 @@ func (node *Node) DispatchNext(ctx context.Context) (DispatchResult, error) {
 		return DispatchResult{Outcome: "blocked"}, nil
 	}
 
+	// Serialize the final authentication proof and durable dispatch intent with
+	// provider login/logout. The lock order is startGate, then mu.
+	node.startGate.Lock()
+	defer node.startGate.Unlock()
+	if !node.providerAuthReady(ctx) {
+		return DispatchResult{Outcome: "blocked"}, nil
+	}
 	node.mu.Lock()
 	defer node.mu.Unlock()
 	tx, err := node.db.BeginTx(ctx, &sql.TxOptions{})
