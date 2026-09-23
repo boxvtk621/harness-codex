@@ -64,7 +64,7 @@ func (adapter *UnsupportedModelRecoveryAdapter) ConfirmUnsupportedModelRejection
 	mapping, exists := store.contents.Attempts[attemptKey(ref)]
 	if !exists || mapping.Reference != ref || mapping.State != "terminal" ||
 		mapping.ProcessGeneration < 1 || mapping.ProcessGeneration >= expectedProcessGeneration ||
-		store.contents.ProcessGeneration != expectedProcessGeneration || !uuidPattern.MatchString(mapping.ThreadID) || !uuidPattern.MatchString(mapping.TurnID) {
+		store.contents.ProcessGeneration != expectedProcessGeneration || !boundedNativeID(mapping.ThreadID) || !boundedNativeID(mapping.TurnID) {
 		return errors.New("native terminal mapping does not match recovery fence")
 	}
 	parts := strings.Split(filepath.ToSlash(relativePath), "/")

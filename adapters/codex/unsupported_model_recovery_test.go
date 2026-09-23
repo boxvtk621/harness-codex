@@ -22,7 +22,7 @@ func TestOfflineUnsupportedModelProofRequiresExactNativeNoEffectTurn(t *testing.
 		t.Fatal(err)
 	}
 	ref := codexTestReference(1)
-	thread, turn := "11111111-1111-4111-8111-111111111111", "22222222-2222-4222-8222-222222222222"
+	thread, turn := "01a0cdc4-9b77-7e71-8d51-80086b0a71c8", "01a0cdc4-9c00-7c20-b541-e0094412b0c5"
 	if err := store.putIntent("start", ref, codexTestBoundary(1), strings.Repeat("a", 64), strings.Repeat("b", 64), ""); err != nil {
 		t.Fatal(err)
 	}
