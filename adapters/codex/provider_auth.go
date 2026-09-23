@@ -472,7 +472,7 @@ func (adapter *Adapter) handleProviderAuthNotification(notification rpcNotificat
 	}
 	var completion accountLoginCompleted
 	if !decodeStrict(notification.Params, &completion) || completion.LoginID == nil || !boundedSessionText(*completion.LoginID, 512) ||
-		completion.OnboardingEntrypoint == nil || *completion.OnboardingEntrypoint != "life_sciences" {
+		(completion.OnboardingEntrypoint != nil && *completion.OnboardingEntrypoint != "life_sciences") {
 		return true
 	}
 	go adapter.completeProviderLogin(completion)

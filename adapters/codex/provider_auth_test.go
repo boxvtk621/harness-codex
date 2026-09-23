@@ -336,6 +336,40 @@ func TestProviderAuthV2MigrationRequiresManagedSuccess(t *testing.T) {
 	}
 }
 
+func TestProviderAuthAcceptsOptionalOnboardingEntrypoint(t *testing.T) {
+	for _, shape := range []string{"omitted", "null", "life_sciences"} {
+		t.Run(shape, func(t *testing.T) {
+			config := testAdapterConfig(t, 2*time.Second)
+			config.Environment = append(config.Environment, "CODEX_AUTH_ONBOARDING="+shape)
+			adapter, err := New(config, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer adapter.Close()
+			snapshot, failure := adapter.StartAuth(context.Background(), authNodeID, authCommand1, "device_code", nil)
+			if failure != nil || snapshot.Operation == nil {
+				t.Fatalf("login failed: %+v", failure)
+			}
+			deadline := time.Now().Add(2 * time.Second)
+			for snapshot.Operation.Status == "pending" && time.Now().Before(deadline) {
+				time.Sleep(10 * time.Millisecond)
+				snapshot, failure = adapter.Snapshot(context.Background(), authNodeID)
+				if failure != nil {
+					t.Fatal(failure.Code)
+				}
+			}
+			if snapshot.State != "authenticated" || snapshot.Operation.Status != "succeeded" || snapshot.Operation.UserCode != nil {
+				t.Fatalf("completion shape %s: state=%s operation=%s", shape, snapshot.State, snapshot.Operation.Status)
+			}
+			adapter.authMu.Lock()
+			managed := adapter.auth.Managed
+			adapter.authMu.Unlock()
+			if !managed {
+				t.Fatal("successful account readback did not establish managed auth")
+			}
+		})
+	}
+}
 func TestProviderAuthCompletionShapeRemainsStrict(t *testing.T) {
 	loginID := "fixture-login"
 	valid := json.RawMessage(`{"loginId":"fixture-login","success":true,"error":null,"onboardingEntrypoint":"life_sciences"}`)
@@ -350,11 +384,10 @@ func TestProviderAuthCompletionShapeRemainsStrict(t *testing.T) {
 	}
 }
 
-func TestProviderAuthNotificationRejectsNonPinnedOnboardingEntrypoint(t *testing.T) {
+func TestProviderAuthNotificationRejectsInvalidCompletion(t *testing.T) {
 	for name, params := range map[string]json.RawMessage{
-		"omitted":     json.RawMessage(`{"loginId":"fixture-login","success":true,"error":null}`),
-		"null":        json.RawMessage(`{"loginId":"fixture-login","success":true,"error":null,"onboardingEntrypoint":null}`),
-		"wrong value": json.RawMessage(`{"loginId":"fixture-login","success":true,"error":null,"onboardingEntrypoint":"future-entrypoint"}`),
+		"unknown field": json.RawMessage(`{"loginId":"fixture-login","success":true,"unexpected":true}`),
+		"wrong value":   json.RawMessage(`{"loginId":"fixture-login","success":true,"error":null,"onboardingEntrypoint":"future-entrypoint"}`),
 	} {
 		t.Run(name, func(t *testing.T) {
 			future := authTimestamp(time.Now().Add(time.Minute))

@@ -250,7 +250,7 @@ console.log(JSON.stringify({node:v.nodeId,epoch:v.identityEpoch,adapter:v.adapte
 const state=JSON.parse(fs.readFileSync('/state/codex/native-mapping.json'));
 const auth=JSON.parse(fs.readFileSync('/state/codex/provider-auth-v1.json'));
 const attempts=Object.entries(state.attempts||{}),dialogs=Object.entries(state.dialogs||{});
-if(state.schemaVersion!==2||attempts.length!==1||dialogs.length!==1||auth.version!==2||Object.keys(auth.receipts||{}).length!==0)process.exit(1);
+if(state.schemaVersion!==2||attempts.length!==1||dialogs.length!==1||auth.version!==3||Object.keys(auth.receipts||{}).length!==0)process.exit(1);
 console.log(JSON.stringify({processGeneration:state.processGeneration,attemptKey:attempts[0][0],attempt:attempts[0][1],dialogKey:dialogs[0][0],dialog:dialogs[0][1],authVersion:auth.version,authReceiptCount:Object.keys(auth.receipts||{}).length}));"""
             legacy_before = json.loads(run('docker', 'exec', container, 'node', '-e', ledger_probe))
             assert legacy_before['processGeneration'] == 42

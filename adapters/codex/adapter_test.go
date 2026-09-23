@@ -1640,9 +1640,14 @@ func runAdapterHelper() int {
 			}})
 			if os.Getenv("CODEX_AUTH_NO_COMPLETE") != "1" {
 				authenticated = true
-				_ = encoder.Encode(map[string]any{"method": "account/login/completed", "params": map[string]any{
-					"loginId": pendingLoginID, "success": true, "error": nil, "onboardingEntrypoint": "life_sciences",
-				}})
+				completion := map[string]any{"loginId": pendingLoginID, "success": true, "error": nil}
+				switch os.Getenv("CODEX_AUTH_ONBOARDING") {
+				case "null":
+					completion["onboardingEntrypoint"] = nil
+				case "life_sciences":
+					completion["onboardingEntrypoint"] = "life_sciences"
+				}
+				_ = encoder.Encode(map[string]any{"method": "account/login/completed", "params": completion})
 			}
 		case "account/login/cancel":
 			status := "notFound"
