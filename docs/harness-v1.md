@@ -230,7 +230,7 @@ and `PreparePolicySnapshot` clones both byte slices before an asynchronous
 native call.
 
 The exact C1 pins are Cursor TypeScript SDK 1.0.31, local attached runs, and Codex
-app-server 0.153.4 stable protocol. Before any mutation, consumers compare the
+app-server 0.155.1 stable protocol. Before any mutation, consumers compare the
 identity `protocolVersion`, `schemaId`, and `schemaSHA256` with their compiled
 manifest pins; any mismatch blocks command forwarding. Cursor native steer maps
 `complete_delivered` to `applied`, `revert_to_followup` to `fallback_queued`, and

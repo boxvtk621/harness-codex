@@ -15,7 +15,7 @@ import (
 
 const (
 	CursorSDKVersion      = "1.0.31"
-	CodexAppServerVersion = "0.153.4"
+	CodexAppServerVersion = "0.155.1"
 )
 
 type Kind string

@@ -33,7 +33,7 @@ func TestParseCodexVersionRequiresExactPin(t *testing.T) {
 	for _, output := range [][]byte{
 		nil,
 		[]byte("codex-cli 0.153.3\n"),
-		[]byte("codex-cli 0.153.40\n"),
+		[]byte("codex-cli 0.155.10\n"),
 		[]byte("prefix codex-cli " + codexAppServerVersion + "\n"),
 		[]byte("codex-cli " + codexAppServerVersion + " suffix\n"),
 		[]byte("codex-cli " + codexAppServerVersion + "\nextra\n"),

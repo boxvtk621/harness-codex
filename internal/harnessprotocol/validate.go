@@ -527,7 +527,7 @@ var capabilityStatusCheck = enumCheck("unsupported", "declared", "verified")
 var capabilitiesCheck = object(map[string]property{"chat": required(capabilityStatusCheck), "events": required(capabilityStatusCheck), "tool_results": required(capabilityStatusCheck), "cancel": required(capabilityStatusCheck), "steer_attached": required(capabilityStatusCheck), "session_resume": required(capabilityStatusCheck), "policy_enforcement": required(capabilityStatusCheck)})
 var adapterIdentityCheck = union(
 	object(map[string]property{"kind": required(enumCheck("cursor")), "version": required(enumCheck("1.0.31"))}),
-	object(map[string]property{"kind": required(enumCheck("codex")), "version": required(enumCheck("0.153.4"))}),
+	object(map[string]property{"kind": required(enumCheck("codex")), "version": required(enumCheck("0.155.1"))}),
 )
 
 func validateNodeIdentity(value map[string]any) error {

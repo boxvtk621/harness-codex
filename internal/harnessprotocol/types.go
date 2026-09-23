@@ -8,7 +8,7 @@ const (
 	ProtocolVersion      = 1
 	SchemaID             = "harness-wire-v2"
 	AdmissionSchemaID    = "harness-admission-v1"
-	SchemaSHA256         = "5bd97f2ea08854a8e56d46ff11a1539e6bc54e8ca6d42841b366561accba73d9"
+	SchemaSHA256         = "5013223c4f77ac7424a486d7223c5321eb7f0e9054fb036e48d6e7748fae1889"
 	MaximumSafeInteger   = int64(1<<53 - 1)
 	MaximumMessageBytes  = 64 * 1024
 	MaximumPageSize      = 100

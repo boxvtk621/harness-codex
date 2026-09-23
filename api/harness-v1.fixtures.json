@@ -1317,7 +1317,7 @@
       "value": {
         "protocolVersion": 1,
         "schemaId": "harness-wire-v2",
-        "schemaSHA256": "5bd97f2ea08854a8e56d46ff11a1539e6bc54e8ca6d42841b366561accba73d9",
+        "schemaSHA256": "5013223c4f77ac7424a486d7223c5321eb7f0e9054fb036e48d6e7748fae1889",
         "nodeId": "20000000-0000-4000-8000-000000000001",
         "registryVersion": 1,
         "identityEpoch": 1,
@@ -1369,13 +1369,13 @@
         "identity": {
           "protocolVersion": 1,
           "schemaId": "harness-wire-v2",
-          "schemaSHA256": "5bd97f2ea08854a8e56d46ff11a1539e6bc54e8ca6d42841b366561accba73d9",
+          "schemaSHA256": "5013223c4f77ac7424a486d7223c5321eb7f0e9054fb036e48d6e7748fae1889",
           "nodeId": "20000000-0000-4000-8000-000000000001",
           "registryVersion": 1,
           "identityEpoch": 1,
           "adapter": {
             "kind": "codex",
-            "version": "0.153.4"
+            "version": "0.155.1"
           },
           "capabilities": {
             "chat": "verified",
@@ -1877,13 +1877,13 @@
         "identity": {
           "protocolVersion": 1,
           "schemaId": "harness-wire-v2",
-          "schemaSHA256": "5bd97f2ea08854a8e56d46ff11a1539e6bc54e8ca6d42841b366561accba73d9",
+          "schemaSHA256": "5013223c4f77ac7424a486d7223c5321eb7f0e9054fb036e48d6e7748fae1889",
           "nodeId": "20000000-0000-4000-8000-000000000001",
           "registryVersion": 1,
           "identityEpoch": 1,
           "adapter": {
             "kind": "codex",
-            "version": "0.153.4"
+            "version": "0.155.1"
           },
           "capabilities": {
             "chat": "verified",
@@ -1908,7 +1908,7 @@
       "value": {
         "protocolVersion": 1,
         "schemaId": "harness-wire-v2",
-        "schemaSHA256": "5bd97f2ea08854a8e56d46ff11a1539e6bc54e8ca6d42841b366561accba73d9",
+        "schemaSHA256": "5013223c4f77ac7424a486d7223c5321eb7f0e9054fb036e48d6e7748fae1889",
         "nodeId": "20000000-0000-4000-8000-000000000001",
         "registryVersion": 1,
         "identityEpoch": 1,
