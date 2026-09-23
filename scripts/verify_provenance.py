@@ -40,6 +40,12 @@ LOCAL_ADDITIONS = {
 # Repository-native provider authentication was designed and implemented here;
 # these files were not extracted from the pinned monorepo source.
 LOCAL_DESTINATIONS = {
+    "runtime/failed_tail_retry.go",
+    "runtime/failed_tail_retry_test.go",
+    "adapters/codex/failed_tail_retry.go",
+    "adapters/codex/failed_tail_retry_test.go",
+    "adapters/codex/runtime_retry_test.go",
+    "internal/diagnosticlog/terminal_test.go",
     "adapters/codex/unsupported_model_recovery.go",
     "adapters/codex/unsupported_model_recovery_test.go",
     "adapters/codex/provider_auth.go",

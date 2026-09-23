@@ -142,17 +142,18 @@ func (node *Node) claimAction(ctx context.Context, lane string) (postCommitActio
 }
 
 type actionPayload struct {
-	Generation      int64  `json:"generation"`
-	DialogID        string `json:"dialogId"`
-	RequestID       string `json:"requestId"`
-	Text            string `json:"text"`
-	ApprovalID      string `json:"approvalId"`
-	ApprovalVersion int64  `json:"approvalVersion"`
-	CallID          string `json:"callId"`
-	ActionHash      string `json:"actionHash"`
-	Decision        string `json:"decision"`
-	InputRequestID  string `json:"inputRequestId"`
-	InputVersion    int64  `json:"inputVersion"`
+	FailedTailRetry *harnessadapter.FailedTailRetry `json:"failedTailRetry"`
+	Generation      int64                           `json:"generation"`
+	DialogID        string                          `json:"dialogId"`
+	RequestID       string                          `json:"requestId"`
+	Text            string                          `json:"text"`
+	ApprovalID      string                          `json:"approvalId"`
+	ApprovalVersion int64                           `json:"approvalVersion"`
+	CallID          string                          `json:"callId"`
+	ActionHash      string                          `json:"actionHash"`
+	Decision        string                          `json:"decision"`
+	InputRequestID  string                          `json:"inputRequestId"`
+	InputVersion    int64                           `json:"inputVersion"`
 }
 
 func (node *Node) performAction(ctx context.Context, action postCommitAction) {
@@ -264,8 +265,24 @@ func (node *Node) performDispatch(ctx context.Context, action postCommitAction, 
 		return
 	}
 	boundary := harnessadapter.ContextBoundary{MessageID: boundaryMessageID, Sequence: boundarySequence}
+	var payload actionPayload
+	_ = json.Unmarshal(action.payload, &payload)
+	if payload.FailedTailRetry != nil {
+		node.mu.Lock()
+		tx, proofErr := node.db.BeginTx(ctx, nil)
+		if proofErr == nil {
+			current, checkErr := failedTailProof(ctx, tx, reference.DialogID, boundaryMessageID)
+			_ = tx.Rollback()
+			if checkErr != nil || string(mustJSON(current)) != string(mustJSON(payload.FailedTailRetry)) {
+				payload.FailedTailRetry = nil
+			}
+		} else {
+			payload.FailedTailRetry = nil
+		}
+		node.mu.Unlock()
+	}
 	if resume {
-		result, err := node.config.Adapter.Resume(ctx, harnessadapter.ResumeInput{Attempt: reference, Prompt: prompt, Policy: policy, Context: boundary})
+		result, err := node.config.Adapter.Resume(ctx, harnessadapter.ResumeInput{Attempt: reference, Prompt: prompt, Policy: policy, Context: boundary, FailedTailRetry: payload.FailedTailRetry})
 		if err != nil || result.Outcome == harnessadapter.ResumeUnknown {
 			node.markAttemptUnknown(context.Background(), reference, "dispatch_uncertain", "unknown")
 			node.finishAction(action.commandID, "unknown")

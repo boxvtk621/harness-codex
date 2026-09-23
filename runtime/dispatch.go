@@ -143,7 +143,11 @@ func (node *Node) DispatchNext(ctx context.Context) (DispatchResult, error) {
 	if err := node.appendNodeEvent(ctx, tx, &state); err != nil {
 		return DispatchResult{}, err
 	}
-	actionPayload := mustJSON(map[string]any{"generation": generation, "dialogId": currentDialog, "requestId": currentRequest})
+	proof, err := failedTailProof(ctx, tx, currentDialog, currentMessage)
+	if err != nil {
+		return DispatchResult{}, err
+	}
+	actionPayload := mustJSON(map[string]any{"generation": generation, "dialogId": currentDialog, "requestId": currentRequest, "failedTailRetry": proof})
 	if _, err := tx.ExecContext(ctx, `INSERT INTO control_actions(command_id,kind,attempt_id,payload,status) VALUES(?,?,?,?,'pending')`, attemptID, actionDispatchStart, attemptID, []byte(actionPayload)); err != nil {
 		return DispatchResult{}, err
 	}

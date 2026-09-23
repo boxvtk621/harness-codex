@@ -1967,7 +1967,12 @@ func runAdapterHelper() int {
 			switch params.Input[0].Text {
 			case "hold-unsupported-interrupt", "unsupported-model-no-start":
 			case "unsupported-model", "unsupported-model-late-start":
-				emitUnsupportedModel(encoder, activeThread, activeTurn)
+				if params.Model == "fixture-entitled-model" {
+					emitAssistant(encoder, activeThread, activeTurn, "answer:available-model")
+					emitTerminal(encoder, activeThread, activeTurn, "completed")
+				} else {
+					emitUnsupportedModel(encoder, activeThread, activeTurn)
+				}
 			case "error-no-retry":
 				emitError(encoder, activeThread, activeTurn, false)
 			case "error-retry":
@@ -2020,7 +2025,7 @@ func runAdapterHelper() int {
 func validHelperPolicy(params nativeThreadOptions) bool {
 	features, ok := params.Config["features"].(map[string]any)
 	mcpServers, mcpOK := params.Config["mcp_servers"].(map[string]any)
-	if params.Model != "fixture-model" || params.CWD == "" || params.ApprovalsReviewer != "user" || !ok || len(features) != len(deniedNativeFeatures) || !mcpOK || len(mcpServers) != 0 {
+	if (params.Model != "fixture-model" && params.Model != "fixture-entitled-model") || params.CWD == "" || params.ApprovalsReviewer != "user" || !ok || len(features) != len(deniedNativeFeatures) || !mcpOK || len(mcpServers) != 0 {
 		return false
 	}
 	explicit := params.DeveloperInstructions == "fixture tool policy"

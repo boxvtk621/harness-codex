@@ -25,15 +25,16 @@ const (
 var uuidPattern = regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$`)
 
 type persistedAttempt struct {
-	Reference         harnessadapter.AttemptRef      `json:"reference"`
-	Context           harnessadapter.ContextBoundary `json:"context"`
-	PolicyHash        string                         `json:"policyHash"`
-	PromptHash        string                         `json:"promptHash"`
-	DispatchKind      string                         `json:"dispatchKind"`
-	ThreadID          string                         `json:"threadId,omitempty"`
-	TurnID            string                         `json:"turnId,omitempty"`
-	ProcessGeneration int64                          `json:"processGeneration,omitempty"`
-	State             string                         `json:"state"`
+	FailedTailRetry   *harnessadapter.FailedTailRetry `json:"failedTailRetry,omitempty"`
+	Reference         harnessadapter.AttemptRef       `json:"reference"`
+	Context           harnessadapter.ContextBoundary  `json:"context"`
+	PolicyHash        string                          `json:"policyHash"`
+	PromptHash        string                          `json:"promptHash"`
+	DispatchKind      string                          `json:"dispatchKind"`
+	ThreadID          string                          `json:"threadId,omitempty"`
+	TurnID            string                          `json:"turnId,omitempty"`
+	ProcessGeneration int64                           `json:"processGeneration,omitempty"`
+	State             string                          `json:"state"`
 }
 
 type persistedDialog struct {
@@ -152,7 +153,7 @@ func (store *mappingStore) dialog(dialogID string) (persistedDialog, bool) {
 	return value, ok
 }
 
-func (store *mappingStore) putIntent(kind string, reference harnessadapter.AttemptRef, boundary harnessadapter.ContextBoundary, policyHash, promptHash, threadID string) error {
+func (store *mappingStore) putIntent(kind string, reference harnessadapter.AttemptRef, boundary harnessadapter.ContextBoundary, policyHash, promptHash, threadID string, proofs ...*harnessadapter.FailedTailRetry) error {
 	if !validReference(reference) || !validBoundary(boundary) || !validPolicyHash(policyHash) || !validPolicyHash(promptHash) ||
 		(kind != "start" && kind != "resume") || (kind == "start" && threadID != "") || (kind == "resume" && !boundedNativeID(threadID)) {
 		return errors.New("codex dispatch intent is invalid")
@@ -170,8 +171,16 @@ func (store *mappingStore) putIntent(kind string, reference harnessadapter.Attem
 		return errors.New("codex dispatch intent already exists")
 	}
 	candidate := cloneMappingState(store.contents)
+	var proof *harnessadapter.FailedTailRetry
+	if len(proofs) > 0 {
+		proof = proofs[0]
+	}
+	if dialog, ok := store.contents.Dialogs[reference.DialogID]; ok && boundary.Sequence < dialog.Boundary.Sequence && !validFailedTail(store.contents, reference, boundary, policyHash, promptHash, proof) {
+		return errors.New("codex failed-tail proof is stale")
+	}
 	candidate.Attempts[key] = persistedAttempt{
-		Reference: reference, Context: boundary, PolicyHash: policyHash, DispatchKind: kind,
+		FailedTailRetry: proof,
+		Reference:       reference, Context: boundary, PolicyHash: policyHash, DispatchKind: kind,
 		PromptHash: promptHash, ThreadID: threadID, ProcessGeneration: store.contents.ProcessGeneration, State: "thread_dispatching",
 	}
 	if err := store.commitCandidateLocked(candidate); err != nil {
@@ -239,7 +248,7 @@ func (store *mappingStore) activate(reference harnessadapter.AttemptRef, turnID 
 	}
 	if dialog, exists := store.contents.Dialogs[reference.DialogID]; exists {
 		exactRetryBoundary := intent.Context == dialog.Boundary
-		if dialog.ThreadID != intent.ThreadID || intent.Context.Sequence < dialog.Boundary.Sequence ||
+		if dialog.ThreadID != intent.ThreadID || (intent.Context.Sequence < dialog.Boundary.Sequence && !validFailedTail(store.contents, reference, intent.Context, intent.PolicyHash, intent.PromptHash, intent.FailedTailRetry)) ||
 			(intent.Context.Sequence == dialog.Boundary.Sequence && !exactRetryBoundary) {
 			return errors.New("codex dialog acknowledgement is stale or conflicting")
 		}
@@ -248,7 +257,11 @@ func (store *mappingStore) activate(reference harnessadapter.AttemptRef, turnID 
 	intent.TurnID = turnID
 	intent.State = "active"
 	candidate.Attempts[key] = intent
-	candidate.Dialogs[reference.DialogID] = persistedDialog{ThreadID: intent.ThreadID, Boundary: intent.Context, PolicyHash: intent.PolicyHash}
+	boundary := intent.Context
+	if previous, ok := candidate.Dialogs[reference.DialogID]; ok && previous.Boundary.Sequence > boundary.Sequence {
+		boundary = previous.Boundary
+	}
+	candidate.Dialogs[reference.DialogID] = persistedDialog{ThreadID: intent.ThreadID, Boundary: boundary, PolicyHash: intent.PolicyHash}
 	return store.commitCandidateLocked(candidate)
 }
 

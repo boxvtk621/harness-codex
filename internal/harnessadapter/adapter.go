@@ -159,10 +159,25 @@ type StartInput struct {
 // ResumeInput repeats the full policy and manifest. Adapters must not inherit
 // native defaults or an earlier provider policy after process/session resume.
 type ResumeInput struct {
-	Attempt AttemptRef
-	Prompt  string
-	Policy  PolicySnapshot
-	Context ContextBoundary
+	Attempt         AttemptRef
+	Prompt          string
+	Policy          PolicySnapshot
+	Context         ContextBoundary
+	FailedTailRetry *FailedTailRetry
+}
+
+// FailedTailRetry is internal, ledger-backed evidence for replaying rejected
+// prompts below the native context high-water mark. It is never a wire input.
+type FailedTailRetry struct {
+	HighWater ContextBoundary
+	Attempts  []FailedTailAttempt
+}
+
+type FailedTailAttempt struct {
+	Attempt    AttemptRef
+	Context    ContextBoundary
+	PolicyHash string
+	PromptHash string
 }
 
 type StartOutcome string

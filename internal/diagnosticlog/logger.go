@@ -167,6 +167,7 @@ type record struct {
 	Operation         string    `json:"operation,omitempty"`
 	Outcome           string    `json:"outcome,omitempty"`
 	Reason            string    `json:"reasonCode,omitempty"`
+	Explanation       string    `json:"explanation,omitempty"`
 	Tool              string    `json:"tool,omitempty"`
 	EffectStatus      string    `json:"effectStatus,omitempty"`
 	Truncated         bool      `json:"truncated,omitempty"`
@@ -320,7 +321,7 @@ func (logger *Logger) encode(level Level, event Event, fields Fields, dropped ui
 		NodeID: fields.NodeID, DialogID: fields.DialogID, RequestID: fields.RequestID, AttemptID: fields.AttemptID, CallID: fields.CallID,
 		CommandID: fields.CommandID, OperationID: fields.OperationID,
 		Generation: fields.Generation, ProcessGeneration: fields.ProcessGeneration, Kind: fields.Kind, Operation: fields.Operation, Outcome: fields.Outcome,
-		Reason: fields.Reason, Tool: fields.Tool, EffectStatus: fields.EffectStatus, Truncated: fields.Truncated, Count: fields.Count + dropped, DurationMS: fields.DurationMS,
+		Reason: fields.Reason, Explanation: terminalExplanation(event, fields), Tool: fields.Tool, EffectStatus: fields.EffectStatus, Truncated: fields.Truncated, Count: fields.Count + dropped, DurationMS: fields.DurationMS,
 	}
 	encoded, err := json.Marshal(value)
 	if err != nil || len(encoded)+1 > MaximumRecord {
@@ -380,4 +381,21 @@ func newBootID() string {
 		return "00000000000000000000000000000000"
 	}
 	return hex.EncodeToString(raw[:])
+}
+
+// Only fixed, reviewed text is emitted; provider diagnostics never enter Fields.
+func terminalExplanation(event Event, fields Fields) string {
+	if event != EventAttemptTerminal {
+		return ""
+	}
+	if fields.Reason == "codex_model_unsupported" {
+		return "Configured Codex model is unavailable for this account. Select an entitled model, then explicitly retry the failed message."
+	}
+	if fields.Outcome == "failed" {
+		return "Attempt failed. Inspect its durable events and effect status before retrying."
+	}
+	if fields.Outcome == "interrupted" {
+		return "Attempt interrupted. Check effect status before retrying."
+	}
+	return ""
 }

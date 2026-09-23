@@ -71,6 +71,26 @@ func (node *Node) applyAttemptRetry(ctx context.Context, tx *sql.Tx, state *dura
 	if effectStatus == "known" && !payload.AcknowledgeKnownEffects {
 		return nil, "", "", postCommitAction{}, reject(http.StatusConflict, "stale", "known effects require acknowledgement")
 	}
+	// A retry addresses the latest request and attempt for this original input.
+	// Later original inputs must still form an entirely failed, effect-free tail.
+	var eligible bool
+	if err := tx.QueryRowContext(ctx, `SELECT
+		EXISTS(SELECT 1 FROM attempts a JOIN requests r ON r.request_id=a.request_id
+		 WHERE a.attempt_id=? AND r.queue_sequence=(SELECT MAX(queue_sequence) FROM requests WHERE input_message_id=?)
+		 AND a.generation=(SELECT MAX(x.generation) FROM attempts x JOIN requests y ON y.request_id=x.request_id WHERE y.input_message_id=?))
+		AND NOT EXISTS(SELECT 1 FROM messages m WHERE m.dialog_id=? AND m.role='user'
+		 AND EXISTS(SELECT 1 FROM requests original WHERE original.input_message_id=m.message_id)
+		 AND m.sequence>(SELECT sequence FROM messages WHERE message_id=?)
+		 AND NOT EXISTS(SELECT 1 FROM requests r JOIN attempts a ON a.request_id=r.request_id
+		 WHERE r.input_message_id=m.message_id AND r.queue_sequence=(SELECT MAX(queue_sequence) FROM requests WHERE input_message_id=m.message_id)
+		 AND a.generation=(SELECT MAX(x.generation) FROM attempts x JOIN requests y ON y.request_id=x.request_id WHERE y.input_message_id=m.message_id)
+		 AND r.status IN('failed','interrupted') AND a.state IN('failed','interrupted') AND a.effect_status='none'))`,
+		target.AttemptID, messageID, messageID, dialogID, messageID).Scan(&eligible); err != nil {
+		return nil, "", "", postCommitAction{}, err
+	}
+	if !eligible {
+		return nil, "", "", postCommitAction{}, reject(http.StatusConflict, "stale", "retry target is superseded or outside the safe failed tail")
+	}
 	if state.PendingCount >= QueueCapacity {
 		return nil, "", "", postCommitAction{}, reject(http.StatusTooManyRequests, "queue_full", "pending queue is full")
 	}

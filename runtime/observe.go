@@ -159,7 +159,11 @@ func (node *Node) ObserveAdapterEvent(ctx context.Context, expected harnessadapt
 		if value.Failure != nil {
 			reason = value.Failure.Code
 		}
-		node.config.Logger.Emit(diagnosticlog.LevelInfo, diagnosticlog.EventAttemptTerminal, diagnosticlog.Fields{
+		level := diagnosticlog.LevelInfo
+		if value.Outcome == harnessadapter.ReconcileFailed || value.Outcome == harnessadapter.ReconcileInterrupted {
+			level = diagnosticlog.LevelWarn
+		}
+		node.config.Logger.Emit(level, diagnosticlog.EventAttemptTerminal, diagnosticlog.Fields{
 			NodeID: actual.NodeID, DialogID: actual.DialogID, RequestID: actual.RequestID, AttemptID: actual.AttemptID,
 			Generation: actual.Generation, Outcome: string(value.Outcome), EffectStatus: value.EffectStatus, Reason: reason,
 		})

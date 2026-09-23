@@ -426,14 +426,15 @@ func (adapter *Adapter) Resume(ctx context.Context, input harnessadapter.ResumeI
 	}
 	dialog, exists := adapter.store.dialog(input.Attempt.DialogID)
 	exactRetryBoundary := input.Context == dialog.Boundary
-	if !exists || !boundedNativeID(dialog.ThreadID) || input.Context.Sequence < dialog.Boundary.Sequence ||
+	failedTail := adapter.store.validFailedTail(input.Attempt, input.Context, policy.EffectiveHash, digestString(input.Prompt), input.FailedTailRetry)
+	if !exists || !boundedNativeID(dialog.ThreadID) || (input.Context.Sequence < dialog.Boundary.Sequence && !failedTail) ||
 		(input.Context.Sequence == dialog.Boundary.Sequence && !exactRetryBoundary) {
 		return harnessadapter.ResumeResult{Outcome: harnessadapter.ResumeContextMissing, Failure: taskFailure("codex_context_missing", "codex dialog context is unavailable")}, nil
 	}
 	if dialog.PolicyHash != policy.EffectiveHash {
 		return harnessadapter.ResumeResult{Outcome: harnessadapter.ResumeRejected, Failure: policyFailure("codex_resume_policy_changed", "codex dialog policy changed; start a new dialog")}, nil
 	}
-	failure, err := adapter.dispatch(ctx, "resume", input.Attempt, input.Prompt, input.Context, policy, dialog.ThreadID)
+	failure, err := adapter.dispatch(ctx, "resume", input.Attempt, input.Prompt, input.Context, policy, dialog.ThreadID, input.FailedTailRetry)
 	if err != nil || failure != nil {
 		if failure == nil {
 			failure = nodeFailure("codex_dispatch_unknown", "codex dispatch acknowledgement is unknown", true)
@@ -443,7 +444,7 @@ func (adapter *Adapter) Resume(ctx context.Context, input harnessadapter.ResumeI
 	return harnessadapter.ResumeResult{Outcome: harnessadapter.ResumeStarted}, nil
 }
 
-func (adapter *Adapter) dispatch(ctx context.Context, kind string, reference harnessadapter.AttemptRef, prompt string, boundary harnessadapter.ContextBoundary, policy harnessadapter.PolicySnapshot, resumeThreadID string) (*harnessadapter.Failure, error) {
+func (adapter *Adapter) dispatch(ctx context.Context, kind string, reference harnessadapter.AttemptRef, prompt string, boundary harnessadapter.ContextBoundary, policy harnessadapter.PolicySnapshot, resumeThreadID string, proofs ...*harnessadapter.FailedTailRetry) (*harnessadapter.Failure, error) {
 	adapter.dispatchMu.Lock()
 	defer adapter.dispatchMu.Unlock()
 	if previous, exists := adapter.store.attempt(reference); exists {
@@ -469,7 +470,7 @@ func (adapter *Adapter) dispatch(ctx context.Context, kind string, reference har
 			return nodeFailure("codex_workspace_unavailable", "codex dialog workspace is unavailable", true), err
 		}
 	}
-	if err := adapter.store.putIntent(kind, reference, boundary, policy.EffectiveHash, digestString(prompt), resumeThreadID); err != nil {
+	if err := adapter.store.putIntent(kind, reference, boundary, policy.EffectiveHash, digestString(prompt), resumeThreadID, proofs...); err != nil {
 		return nil, err
 	}
 	toolCtx, cancelTools := context.WithCancel(context.Background())
