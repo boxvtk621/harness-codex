@@ -26,6 +26,10 @@ checked as part of HL-306, independently of the current
 [App Server](https://learn.chatgpt.com/docs/app-server) documentation.
 Completion is accepted only after `account/login/completed` and a successful
 `account/read` readback reporting a managed ChatGPT account.
+An account already present in `CODEX_HOME` is not node authorization by itself.
+The durable state records whether a matching Harness-started device-code flow
+completed successfully; startup and explicit checks fail closed as
+`unauthenticated` with `managed_auth_required` until that proof exists.
 
 `commandId` receipts are written before the native request. Repeating the same
 command returns its current envelope; reusing it for different input returns

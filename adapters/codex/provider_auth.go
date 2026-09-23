@@ -21,7 +21,7 @@ import (
 
 const (
 	providerAuthFile      = "provider-auth-v1.json"
-	providerAuthVersion   = 2
+	providerAuthVersion   = 3
 	providerAuthTimeout   = 15 * time.Minute
 	maximumAuthStateBytes = 64 << 20
 	maximumAuthReceipts   = 65536
@@ -43,6 +43,7 @@ type storedAuthOperation struct {
 type providerAuthState struct {
 	Version    int                            `json:"version"`
 	Revision   int64                          `json:"revision"`
+	Managed    bool                           `json:"managed"`
 	State      string                         `json:"state"`
 	CheckedAt  *string                        `json:"checkedAt"`
 	ReasonCode *string                        `json:"reasonCode"`
@@ -512,6 +513,9 @@ func (adapter *Adapter) completeProviderLogin(completion accountLoginCompleted) 
 		return
 	}
 	if err == nil {
+		if response.Account != nil && response.Account.Type == "chatgpt" {
+			adapter.auth.Managed = true
+		}
 		adapter.applyAccountReadLocked(response, time.Now())
 	} else {
 		adapter.auth.State = "unknown"
@@ -535,15 +539,22 @@ func (adapter *Adapter) applyAccountReadLocked(response accountReadResponse, now
 	adapter.auth.CheckedAt = &checked
 	adapter.auth.ReasonCode = nil
 	switch {
-	case response.Account != nil && response.Account.Type == "chatgpt":
+	case response.Account != nil && response.Account.Type == "chatgpt" && adapter.auth.Managed:
 		adapter.auth.State = "authenticated"
+	case response.Account != nil && response.Account.Type == "chatgpt":
+		adapter.auth.State = "unauthenticated"
+		reason := "managed_auth_required"
+		adapter.auth.ReasonCode = &reason
 	case response.Account != nil:
+		adapter.auth.Managed = false
 		adapter.auth.State = "reauthentication_required"
 		reason := "managed_auth_required"
 		adapter.auth.ReasonCode = &reason
 	case response.RequiresOpenAIAuth:
+		adapter.auth.Managed = false
 		adapter.auth.State = "unauthenticated"
 	case !response.RequiresOpenAIAuth:
+		adapter.auth.Managed = false
 		adapter.auth.State = "reauthentication_required"
 		reason := "managed_auth_required"
 		adapter.auth.ReasonCode = &reason
@@ -687,26 +698,45 @@ func migrateProviderAuthState(state *providerAuthState) bool {
 	if state.Version == providerAuthVersion {
 		return true
 	}
-	if state.Version != 1 {
+	if state.Version != 1 && state.Version != 2 {
 		return false
 	}
-	createdAt := "1970-01-01T00:00:00Z"
-	if state.Operation != nil && validAuthTimestamp(state.Operation.CreatedAt) {
-		createdAt = state.Operation.CreatedAt
-	} else if state.CheckedAt != nil && validAuthTimestamp(*state.CheckedAt) {
-		createdAt = *state.CheckedAt
-	}
-	for commandID, receipt := range state.Receipts {
-		if receipt.CreatedAt == "" {
-			receipt.CreatedAt = createdAt
-			state.Receipts[commandID] = receipt
+	if state.Version == 1 {
+		createdAt := "1970-01-01T00:00:00Z"
+		if state.Operation != nil && validAuthTimestamp(state.Operation.CreatedAt) {
+			createdAt = state.Operation.CreatedAt
+		} else if state.CheckedAt != nil && validAuthTimestamp(*state.CheckedAt) {
+			createdAt = *state.CheckedAt
 		}
+		for commandID, receipt := range state.Receipts {
+			if receipt.CreatedAt == "" {
+				receipt.CreatedAt = createdAt
+				state.Receipts[commandID] = receipt
+			}
+		}
+	}
+	state.Managed = state.Operation != nil && state.Operation.Status == "succeeded"
+	if !state.Managed {
+		for _, operation := range state.Operations {
+			if operation.Status == "succeeded" {
+				state.Managed = true
+				break
+			}
+		}
+	}
+	if !state.Managed && state.State == "authenticated" {
+		state.State = "unauthenticated"
+		reason := "managed_auth_required"
+		state.ReasonCode = &reason
 	}
 	state.Version = providerAuthVersion
 	return true
 }
 
 func validProviderAuthState(state providerAuthState) bool {
+	if state.State == "authenticated" && !state.Managed {
+		return false
+	}
 	switch state.State {
 	case "unknown", "unauthenticated", "authenticated", "reauthentication_required":
 	default:

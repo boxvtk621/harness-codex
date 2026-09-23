@@ -1523,7 +1523,7 @@ func runAdapterHelper() int {
 	activeExplicit := false
 	activeWorkspace := ""
 	activeFeatures := map[string]any{}
-	authenticated := false
+	authenticated := os.Getenv("CODEX_AUTH_START_AUTHENTICATED") == "1"
 	pendingLoginID := ""
 	for scanner.Scan() {
 		var frame rpcFrame

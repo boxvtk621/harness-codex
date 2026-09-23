@@ -81,6 +81,62 @@ func TestProviderAuthPendingIdempotencyCancelAndRestart(t *testing.T) {
 	}
 }
 
+func TestProviderAuthDoesNotAdoptPreexistingNativeAccount(t *testing.T) {
+	config := testAdapterConfig(t, 2*time.Second)
+	config.Environment = append(config.Environment, "CODEX_AUTH_START_AUTHENTICATED=1")
+	adapter, err := New(config, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer adapter.Close()
+
+	snapshot, failure := adapter.Snapshot(context.Background(), authNodeID)
+	if failure != nil || snapshot.State != "unauthenticated" || snapshot.ReasonCode == nil || *snapshot.ReasonCode != "managed_auth_required" {
+		t.Fatalf("preexisting native account was adopted: snapshot=%+v failure=%+v", snapshot, failure)
+	}
+	checked, failure := adapter.Check(context.Background(), authNodeID, authCommand1)
+	if failure != nil || checked.State != "unauthenticated" || checked.ReasonCode == nil || *checked.ReasonCode != "managed_auth_required" {
+		t.Fatalf("check adopted preexisting native account: checked=%+v failure=%+v", checked, failure)
+	}
+}
+
+func TestProviderAuthPersistsManagedDeviceCodeProofAcrossRestart(t *testing.T) {
+	config := testAdapterConfig(t, 2*time.Second)
+	adapter, err := New(config, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	started, failure := adapter.StartAuth(context.Background(), authNodeID, authCommand1, "device_code", nil)
+	if failure != nil || started.Operation == nil {
+		t.Fatalf("started=%+v failure=%+v", started, failure)
+	}
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		snapshot, failure := adapter.Snapshot(context.Background(), authNodeID)
+		if failure != nil {
+			t.Fatal(failure.Code)
+		}
+		if snapshot.State == "authenticated" {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	if err := adapter.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	config.Environment = append(config.Environment, "CODEX_AUTH_START_AUTHENTICATED=1")
+	reopened, err := New(config, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer reopened.Close()
+	snapshot, failure := reopened.Snapshot(context.Background(), authNodeID)
+	if failure != nil || snapshot.State != "authenticated" {
+		t.Fatalf("managed proof was not retained: snapshot=%+v failure=%+v", snapshot, failure)
+	}
+}
+
 func TestProviderAuthCompletionReadbackCheckAndLogout(t *testing.T) {
 	adapter := newTestAdapter(t, 2*time.Second)
 	defer adapter.Close()
@@ -260,8 +316,23 @@ func TestProviderAuthCheckExpiresMissedCompletionWithoutInferringSuccess(t *test
 	adapter.authMu.Unlock()
 
 	checked, failure := adapter.Check(context.Background(), authNodeID, authCommand2)
-	if failure != nil || checked.State != "authenticated" || checked.Operation == nil || checked.Operation.Status != "expired" {
+	if failure != nil || checked.State != "unauthenticated" || checked.ReasonCode == nil || *checked.ReasonCode != "managed_auth_required" ||
+		checked.Operation == nil || checked.Operation.Status != "expired" {
 		t.Fatalf("checked=%+v failure=%+v", checked, failure)
+	}
+}
+
+func TestProviderAuthV2MigrationRequiresManagedSuccess(t *testing.T) {
+	failed := providerAuthState{Version: 2, State: "authenticated", Operation: &storedAuthOperation{Operation: providerauth.Operation{Status: "expired"}}}
+	if !migrateProviderAuthState(&failed) || failed.Version != providerAuthVersion || failed.Managed || failed.State != "unauthenticated" ||
+		failed.ReasonCode == nil || *failed.ReasonCode != "managed_auth_required" {
+		t.Fatalf("expired v2 operation established managed auth: %+v", failed)
+	}
+	succeeded := providerAuthState{Version: 2, State: "authenticated", Operations: map[string]storedAuthOperation{
+		"success": {Operation: providerauth.Operation{Status: "succeeded"}},
+	}}
+	if !migrateProviderAuthState(&succeeded) || !succeeded.Managed {
+		t.Fatalf("successful v2 operation lost managed auth: %+v", succeeded)
 	}
 }
 
@@ -475,7 +546,7 @@ func TestProviderAuthMigratesV1ReceiptsAndReplaysSameCommand(t *testing.T) {
 		t.Fatalf("v1 replay=%+v failure=%+v", replayed, failure)
 	}
 	migrated, err := os.ReadFile(path)
-	if err != nil || !strings.Contains(string(migrated), `"version":2`) || !strings.Contains(string(migrated), `"createdAt"`) {
+	if err != nil || !strings.Contains(string(migrated), `"version":3`) || !strings.Contains(string(migrated), `"createdAt"`) {
 		t.Fatalf("state was not migrated: %s err=%v", migrated, err)
 	}
 }
