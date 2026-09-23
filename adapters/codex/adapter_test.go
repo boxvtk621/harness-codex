@@ -1202,6 +1202,204 @@ func TestAdapterMapsNativeErrorRetrySemantics(t *testing.T) {
 	}
 }
 
+func unsupportedModelError(model string) *nativeTurnError {
+	message, _ := json.Marshal(map[string]any{
+		"type": "error", "status": 400, "error": map[string]string{
+			"type": "invalid_request_error", "message": "The '" + model + "' model is not supported when using Codex with a ChatGPT account.",
+		},
+	})
+	return &nativeTurnError{Message: string(message), CodexErrorInfo: json.RawMessage(`"other"`)}
+}
+
+func TestUnsupportedModelFailureThroughNativeTransport(t *testing.T) {
+	for _, mode := range []string{"unsupported-model", "unsupported-model-no-start", "unsupported-model-late-start", "hold-unsupported-interrupt"} {
+		t.Run(mode, func(t *testing.T) {
+			adapter := newTestAdapter(t, 2*time.Second)
+			defer adapter.Close()
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			reference := adapterReference(1, 1, 1)
+			start, err := adapter.Start(ctx, harnessadapter.StartInput{Attempt: reference, Prompt: mode, Context: adapterBoundary(1), Policy: adapterPolicy()})
+			if err != nil || start.Outcome != harnessadapter.StartStarted {
+				t.Fatalf("start = %+v, %v", start, err)
+			}
+			if mode == "hold-unsupported-interrupt" {
+				if _, err := adapter.Cancel(ctx, harnessadapter.CancelInput{Attempt: reference}); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if mode == "unsupported-model-no-start" {
+				// Wait for dispatch binding without inventing a turn/started
+				// notification; the fixture then emits the terminal rejection.
+				if err := adapter.session.Call(ctx, "fixture/unsupported", struct{}{}, &struct{}{}); err != nil {
+					t.Fatal(err)
+				}
+			}
+			events := readAdapterEvents(t, ctx, adapter, reference)
+			terminal, ok := events[len(events)-1].(harnessadapter.TerminalEvent)
+			want := "none"
+			if mode != "unsupported-model" {
+				want = "unknown"
+			}
+			if !ok || terminal.Outcome != harnessadapter.ReconcileFailed || terminal.EffectStatus != want || terminal.Failure == nil || terminal.Failure.Code != "codex_model_unsupported" {
+				t.Fatalf("terminal = %#v", events[len(events)-1])
+			}
+		})
+	}
+}
+
+func TestUnmappedActivityDuringTurnBindingDisqualifiesPreExecution(t *testing.T) {
+	// bindTurn assigns the ID before publishing byTurn. Reproduce that gap:
+	// an early model event must not disappear from the pre-execution proof.
+	native := &nativeAttempt{threadID: "thread-1", turnID: "turn-1"}
+	adapter := &Adapter{byThread: map[string]*nativeAttempt{"thread-1": native}, byTurn: map[string]*nativeAttempt{}}
+	if adapter.nativeFor("thread-1", "turn-1") != nil || !native.executionObserved {
+		t.Fatal("unmapped activity was silently excluded from the execution evidence")
+	}
+}
+
+func TestUnsupportedModelFailureRequiresExactSafeEvidence(t *testing.T) {
+	for _, name := range []string{"exact", "wrong-model", "plain-text", "server-error", "different-type", "extra-data", "duplicate-key", "trailing", "missing-info", "stream-error", "oversized"} {
+		t.Run(name, func(t *testing.T) {
+			evidence := unsupportedModelError("gpt-5.2-codex")
+			switch name {
+			case "wrong-model":
+				evidence = unsupportedModelError("other-model")
+			case "plain-text":
+				evidence.Message = "The 'gpt-5.2-codex' model is not supported when using Codex with a ChatGPT account."
+			case "server-error":
+				evidence.Message = strings.Replace(evidence.Message, `"status":400`, `"status":500`, 1)
+			case "different-type":
+				evidence.Message = strings.Replace(evidence.Message, "invalid_request_error", "server_error", 1)
+			case "extra-data":
+				evidence.Message = strings.TrimSuffix(evidence.Message, "}") + `,"secret":"sensitive-provider-payload"}`
+			case "duplicate-key":
+				evidence.Message = `{"status":500,` + strings.TrimPrefix(evidence.Message, "{")
+			case "trailing":
+				evidence.Message += ` {}`
+			case "missing-info":
+				evidence.CodexErrorInfo = nil
+			case "stream-error":
+				evidence.CodexErrorInfo = json.RawMessage(`{"responseStreamDisconnected":{"httpStatusCode":400}}`)
+			case "oversized":
+				evidence.Message = strings.Repeat(" ", 64<<10) + evidence.Message
+			}
+			failure := unsupportedModelFailure(evidence, "gpt-5.2-codex")
+			if name != "exact" {
+				if failure != nil {
+					t.Fatalf("unsafe match: %+v", failure)
+				}
+				return
+			}
+			if failure == nil || failure.Code != "codex_model_unsupported" || failure.Retryable || strings.Contains(failure.SafeMessage, "gpt-5.2-codex") {
+				t.Fatalf("safe failure = %+v", failure)
+			}
+		})
+	}
+}
+
+func TestUnsupportedModelTerminalPreservesUncertaintyAfterActivity(t *testing.T) {
+	for _, activity := range []string{"none", "user-message", "delta", "reasoning", "usage", "retry", "steer", "final-tool", "missing-items", "closed-unknown", "tool-request", "completed-tool", "wrong-turn", "error-only", "generic-failure"} {
+		t.Run(activity, func(t *testing.T) {
+			adapter := newTestAdapter(t, 2*time.Second)
+			defer adapter.Close()
+			reference := adapterReference(1, 1, 1)
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			start, err := adapter.Start(ctx, harnessadapter.StartInput{Attempt: reference, Prompt: "hold", Context: adapterBoundary(1), Policy: adapterPolicy()})
+			if err != nil || start.Outcome != harnessadapter.StartStarted {
+				t.Fatalf("start = %+v, %v", start, err)
+			}
+			mapping, native := adapter.active(reference)
+			notify := func(method string, params any) {
+				raw, err := json.Marshal(params)
+				if err != nil {
+					t.Fatal(err)
+				}
+				adapter.handleNotification(rpcNotification{Method: method, Params: raw})
+			}
+			errorParams := map[string]any{"threadId": mapping.ThreadID, "turnId": mapping.TurnID, "willRetry": false, "error": unsupportedModelError("fixture-model")}
+			turn := map[string]any{"id": mapping.TurnID, "status": "failed", "items": []any{}, "error": unsupportedModelError("fixture-model")}
+			switch activity {
+			case "user-message":
+				notify("item/completed", nativeItemParams{ThreadID: mapping.ThreadID, TurnID: mapping.TurnID, Item: nativeItem{ID: "user-1", Type: "userMessage"}})
+				turn["items"] = []any{map[string]any{"id": "user-1", "type": "userMessage"}}
+			case "delta", "reasoning":
+				method := "item/agentMessage/delta"
+				if activity == "reasoning" {
+					method = "item/reasoning/textDelta"
+				}
+				notify(method, nativeDeltaParams{ThreadID: mapping.ThreadID, TurnID: mapping.TurnID, ItemID: "model-1", Delta: "fixture"})
+			case "usage":
+				notify("thread/tokenUsage/updated", nativeUsageParams{ThreadID: mapping.ThreadID, TurnID: mapping.TurnID})
+			case "retry":
+				errorParams["willRetry"] = true
+			case "steer":
+				if _, err := adapter.Steer(ctx, harnessadapter.SteerInput{Attempt: reference, MessageID: adapterBoundary(2).MessageID, Text: "fixture steer"}); err != nil {
+					t.Fatal(err)
+				}
+			case "final-tool":
+				turn["items"] = []any{map[string]any{"id": "tool-1", "type": "dynamicToolCall"}}
+			case "missing-items":
+				delete(turn, "items")
+			case "closed-unknown":
+				native.runtime.failUnknown("provider_state")
+			case "tool-request":
+				raw, _ := json.Marshal(map[string]string{"threadId": mapping.ThreadID, "turnId": mapping.TurnID})
+				// Even an unrecognized, rejected native request disqualifies the proof.
+				adapter.handleRequest(rpcServerRequest{ID: rpcID{key: "fixture", raw: json.RawMessage(`"fixture"`)}, Method: "future/tool", Params: raw})
+			case "completed-tool":
+				native.mu.Lock()
+				native.tools["tool-1"] = nativeTool{done: true, effectStatus: "known"}
+				native.mu.Unlock()
+			case "wrong-turn":
+				turn["id"] = "different-turn"
+			case "generic-failure":
+				turn["error"] = &nativeTurnError{Message: "sensitive-provider-payload"}
+			}
+			notify("error", errorParams)
+			if result := native.runtime.reconcile(); activity != "closed-unknown" && activity != "tool-request" && result.Outcome != harnessadapter.ReconcileRunning {
+				t.Fatalf("error notification prematurely terminated turn: %+v", result)
+			}
+			if activity != "error-only" {
+				notify("turn/completed", map[string]any{"threadId": mapping.ThreadID, "turn": turn})
+			}
+			result := native.runtime.reconcile()
+			if activity == "error-only" || activity == "wrong-turn" {
+				if result.Outcome != harnessadapter.ReconcileRunning {
+					t.Fatalf("missing terminal released turn: %+v", result)
+				}
+				return
+			}
+			wantEffect := "unknown"
+			if activity == "none" || activity == "user-message" {
+				wantEffect = "none"
+			}
+			if result.EffectStatus != wantEffect {
+				t.Fatalf("effect = %+v, want %s", result, wantEffect)
+			}
+			if activity == "closed-unknown" || activity == "tool-request" {
+				if result.Outcome != harnessadapter.ReconcileUnknown {
+					t.Fatalf("unknown was cleared: %+v", result)
+				}
+				return
+			}
+			if result.Outcome != harnessadapter.ReconcileFailed || result.Failure == nil || strings.Contains(result.Failure.SafeMessage, "sensitive-provider-payload") {
+				t.Fatalf("failure = %+v", result)
+			}
+			if activity != "generic-failure" && result.Failure.Code != "codex_model_unsupported" {
+				t.Fatalf("diagnostic = %+v", result.Failure)
+			}
+			// Reconciliation and emitted terminal must carry the same safe outcome.
+			events := readAdapterEvents(t, ctx, adapter, reference)
+			terminal, ok := events[len(events)-1].(harnessadapter.TerminalEvent)
+			if !ok || terminal.EffectStatus != wantEffect || terminal.Failure.Code != result.Failure.Code {
+				t.Fatalf("terminal = %#v", events[len(events)-1])
+			}
+		})
+	}
+}
+
 func TestAdapterFailsClosedForEveryUnexpectedNativeItem(t *testing.T) {
 	itemTypes := []string{
 		"functionCallOutput", "commandExecution", "fileChange", "mcpToolCall", "dynamicToolCall",
@@ -1516,6 +1714,7 @@ func runAdapterHelper() int {
 	turns := 0
 	activeThread := ""
 	activeTurn := ""
+	rejectOnInterrupt := false
 	pendingInput := ""
 	pendingApproval := ""
 	pendingApprovalIDs := map[string]struct{}{}
@@ -1716,14 +1915,23 @@ func runAdapterHelper() int {
 			_ = encoder.Encode(map[string]any{"id": frame.ID, "result": map[string]any{"data": servers, "nextCursor": nil}})
 		case "fixture/dynamicResponseIDs":
 			_ = encoder.Encode(map[string]any{"id": frame.ID, "result": map[string]any{"ids": dynamicResponseIDs}})
+		case "fixture/unsupported":
+			emitUnsupportedModel(encoder, activeThread, activeTurn)
+			_ = encoder.Encode(map[string]any{"id": frame.ID, "result": map[string]any{}})
 		case "turn/start":
 			var params nativeTurnParams
 			if json.Unmarshal(frame.Params, &params) != nil || params.ThreadID != activeThread || len(params.Input) != 1 || params.Input[0].Type != "text" || params.ClientUserMessageID == "" || params.CWD != activeWorkspace || !validHelperTurnPolicy(params) {
 				return 8
 			}
 			turns++
+			rejectOnInterrupt = params.Input[0].Text == "hold-unsupported-interrupt"
 			activeTurn = fmt.Sprintf("turn-%d", turns)
-			_ = encoder.Encode(map[string]any{"method": "turn/started", "params": map[string]any{"threadId": activeThread, "turn": map[string]string{"id": activeTurn, "status": "inProgress"}}})
+			if params.Input[0].Text == "unsupported-model-late-start" {
+				emitAssistant(encoder, activeThread, activeTurn, "prior activity before binding")
+			}
+			if params.Input[0].Text != "unsupported-model-no-start" {
+				_ = encoder.Encode(map[string]any{"method": "turn/started", "params": map[string]any{"threadId": activeThread, "turn": map[string]string{"id": activeTurn, "status": "inProgress"}}})
+			}
 			if params.Input[0].Text == "lose-turn-ack" {
 				continue
 			}
@@ -1757,6 +1965,9 @@ func runAdapterHelper() int {
 			}
 			_ = encoder.Encode(map[string]any{"id": frame.ID, "result": map[string]any{"turn": map[string]string{"id": activeTurn, "status": "inProgress"}}})
 			switch params.Input[0].Text {
+			case "hold-unsupported-interrupt", "unsupported-model-no-start":
+			case "unsupported-model", "unsupported-model-late-start":
+				emitUnsupportedModel(encoder, activeThread, activeTurn)
 			case "error-no-retry":
 				emitError(encoder, activeThread, activeTurn, false)
 			case "error-retry":
@@ -1787,6 +1998,11 @@ func runAdapterHelper() int {
 			var params struct{ ThreadID, TurnID string }
 			if json.Unmarshal(frame.Params, &params) != nil || params.ThreadID != activeThread || params.TurnID != activeTurn {
 				return 10
+			}
+			if rejectOnInterrupt {
+				emitUnsupportedModel(encoder, activeThread, activeTurn)
+				_ = encoder.Encode(map[string]any{"id": frame.ID, "result": map[string]any{}})
+				continue
 			}
 			_ = encoder.Encode(map[string]any{"id": frame.ID, "result": map[string]any{}})
 			time.Sleep(150 * time.Millisecond)
@@ -1917,6 +2133,16 @@ func emitResolved(encoder *json.Encoder, threadID string, requestID json.RawMess
 func emitError(encoder *json.Encoder, threadID, turnID string, willRetry bool) {
 	_ = encoder.Encode(map[string]any{"method": "error", "params": map[string]any{
 		"threadId": threadID, "turnId": turnID, "willRetry": willRetry, "error": map[string]string{"message": "fixture failure"},
+	}})
+}
+
+func emitUnsupportedModel(encoder *json.Encoder, threadID, turnID string) {
+	providerError := unsupportedModelError("fixture-model")
+	_ = encoder.Encode(map[string]any{"method": "error", "params": map[string]any{
+		"threadId": threadID, "turnId": turnID, "willRetry": false, "error": providerError,
+	}})
+	_ = encoder.Encode(map[string]any{"method": "turn/completed", "params": map[string]any{
+		"threadId": threadID, "turn": map[string]any{"id": turnID, "status": "failed", "items": []any{}, "itemsView": "summary", "error": providerError},
 	}})
 }
 

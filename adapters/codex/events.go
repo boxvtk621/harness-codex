@@ -14,6 +14,7 @@ import (
 	"github.com/boxvtk621/harness-codex/internal/diagnosticlog"
 	"github.com/boxvtk621/harness-codex/internal/harnessadapter"
 	"github.com/boxvtk621/harness-codex/internal/harnessprotocol"
+	"github.com/boxvtk621/harness-codex/internal/strictjson"
 	"github.com/boxvtk621/harness-codex/internal/toolrunner"
 )
 
@@ -50,9 +51,16 @@ type nativeItemParams struct {
 type nativeTurnNotice struct {
 	ThreadID string `json:"threadId"`
 	Turn     struct {
-		ID     string `json:"id"`
-		Status string `json:"status"`
+		ID     string           `json:"id"`
+		Status string           `json:"status"`
+		Items  []nativeItem     `json:"items"`
+		Error  *nativeTurnError `json:"error"`
 	} `json:"turn"`
+}
+
+type nativeTurnError struct {
+	Message        string          `json:"message"`
+	CodexErrorInfo json.RawMessage `json:"codexErrorInfo"`
 }
 
 type nativeDeltaParams struct {
@@ -105,12 +113,10 @@ type nativeRequestResolved struct {
 }
 
 type nativeErrorNotice struct {
-	ThreadID  string `json:"threadId"`
-	TurnID    string `json:"turnId"`
-	WillRetry bool   `json:"willRetry"`
-	Error     struct {
-		Message string `json:"message"`
-	} `json:"error"`
+	ThreadID  string          `json:"threadId"`
+	TurnID    string          `json:"turnId"`
+	WillRetry bool            `json:"willRetry"`
+	Error     nativeTurnError `json:"error"`
 }
 
 func (adapter *Adapter) handleNotification(notification rpcNotification) {
@@ -127,8 +133,14 @@ func (adapter *Adapter) handleNotification(notification rpcNotification) {
 		adapter.mu.Lock()
 		native := adapter.byThread[params.ThreadID]
 		adapter.mu.Unlock()
-		if native != nil && !adapter.bindTurn(native, params.Turn.ID) {
-			native.runtime.failUnknown("adapter_protocol")
+		if native != nil {
+			if !adapter.bindTurn(native, params.Turn.ID) {
+				native.runtime.failUnknown("adapter_protocol")
+			} else {
+				native.mu.Lock()
+				native.turnStartedObserved = true
+				native.mu.Unlock()
+			}
 		}
 	case "item/agentMessage/delta":
 		var params nativeDeltaParams
@@ -140,6 +152,7 @@ func (adapter *Adapter) handleNotification(notification rpcNotification) {
 		if native == nil {
 			return
 		}
+		native.observeExecution()
 		adapter.confirmAttemptInputs(native)
 		native.runtime.push(harnessadapter.AssistantDeltaEvent{
 			EventBase: harnessadapter.EventBase{Attempt: native.reference},
@@ -152,6 +165,9 @@ func (adapter *Adapter) handleNotification(notification rpcNotification) {
 			return
 		}
 		if native := adapter.nativeFor(params.ThreadID, params.TurnID); native != nil {
+			if params.Item.Type != "userMessage" {
+				native.observeExecution()
+			}
 			adapter.confirmAttemptInputs(native)
 			adapter.handleItem(native, notification.Method, params.Item)
 		}
@@ -166,17 +182,29 @@ func (adapter *Adapter) handleNotification(notification rpcNotification) {
 			return
 		}
 		if native := adapter.nativeFor(params.ThreadID, params.TurnID); native != nil {
+			native.observeExecution()
 			adapter.confirmAttemptInputs(native)
 			adapter.handleUsage(native, params.TokenUsage.Last)
 		}
 	case "turn/completed":
 		var params nativeTurnNotice
-		if json.Unmarshal(notification.Params, &params) != nil || !boundedNativeID(params.Turn.ID) {
+		if !strictjson.Valid(notification.Params) || json.Unmarshal(notification.Params, &params) != nil || !boundedNativeID(params.Turn.ID) {
 			adapter.failActive("adapter_protocol")
 			return
 		}
 		if native := adapter.nativeFor(params.ThreadID, params.Turn.ID); native != nil {
-			adapter.finish(native, params.Turn.Status)
+			// Live terminal items may be only a summary. They can disprove
+			// pre-execution, never establish it: the proof also requires our
+			// uninterrupted current-process stream from turn/started.
+			if params.Turn.Items == nil {
+				native.observeExecution()
+			}
+			for _, item := range params.Turn.Items {
+				if item.Type != "userMessage" {
+					native.observeExecution()
+				}
+			}
+			adapter.finish(native, params.Turn.Status, unsupportedModelFailure(params.Turn.Error, adapter.config.Model))
 		}
 	case "serverRequest/resolved":
 		var params nativeRequestResolved
@@ -193,11 +221,26 @@ func (adapter *Adapter) handleNotification(notification rpcNotification) {
 			adapter.failActive("adapter_protocol")
 			return
 		}
-		if native := adapter.nativeFor(params.ThreadID, params.TurnID); native != nil && !params.WillRetry {
-			adapter.finish(native, "failed")
+		if native := adapter.nativeFor(params.ThreadID, params.TurnID); native != nil {
+			if params.WillRetry {
+				native.mu.Lock()
+				native.retryObserved = true
+				native.mu.Unlock()
+			} else if unsupportedModelFailure(&params.Error, adapter.config.Model) == nil {
+				adapter.finish(native, "failed", nil)
+			}
+			// A recognized rejection still needs turn/completed with matching
+			// evidence. A lone error notification never releases admission.
 		}
 	case "item/plan/delta", "item/reasoning/summaryPartAdded", "item/reasoning/summaryTextDelta", "item/reasoning/textDelta":
-		// Passive display-only deltas are intentionally not projected.
+		var params nativeDeltaParams
+		if json.Unmarshal(notification.Params, &params) != nil {
+			adapter.failActive("adapter_protocol")
+			return
+		}
+		if native := adapter.nativeFor(params.ThreadID, params.TurnID); native != nil {
+			native.observeExecution()
+		}
 	default:
 		if strings.HasPrefix(notification.Method, "item/") {
 			adapter.failActive("adapter_protocol")
@@ -213,6 +256,12 @@ func parseResolvedRequest(encoded json.RawMessage, params *nativeRequestResolved
 }
 
 func (adapter *Adapter) handleRequest(request rpcServerRequest) {
+	var base nativeRequestBase
+	if json.Unmarshal(request.Params, &base) == nil {
+		if native := adapter.nativeFor(base.ThreadID, base.TurnID); native != nil {
+			native.observeExecution()
+		}
+	}
 	switch request.Method {
 	case "item/tool/call":
 		adapter.handleDynamicToolRequest(request)
@@ -644,7 +693,13 @@ func (adapter *Adapter) nativeFor(threadID, turnID string) *nativeAttempt {
 	}
 	adapter.mu.Lock()
 	native := adapter.byTurn[turnKey(threadID, turnID)]
+	unbound := adapter.byThread[threadID]
 	adapter.mu.Unlock()
+	if native == nil && unbound != nil {
+		// A dropped notification for this thread makes absence of activity
+		// inconclusive. Include the gap between assigning turnID and byTurn.
+		unbound.observeExecution()
+	}
 	return native
 }
 
@@ -1177,7 +1232,7 @@ func (adapter *Adapter) handleUsage(native *nativeAttempt, usage nativeUsage) {
 	native.mu.Unlock()
 }
 
-func (adapter *Adapter) finish(native *nativeAttempt, status string) {
+func (adapter *Adapter) finish(native *nativeAttempt, status string, rejection *harnessadapter.Failure) {
 	native.cancelTools()
 	inputUnconfirmed := adapter.resolveAttemptInputs(native, false)
 	approvalUnconfirmed := adapter.resolveAttemptApprovals(native, false)
@@ -1188,6 +1243,7 @@ func (adapter *Adapter) finish(native *nativeAttempt, status string) {
 	}
 	native.mu.Lock()
 	output, usage := native.output, native.usage
+	preExecution := native.turnStartedObserved && !native.executionObserved && !native.retryObserved && len(native.tools) == 0 && output == nil && usage == nil
 	if output != nil {
 		copyOutput := *output
 		output = &copyOutput
@@ -1207,12 +1263,55 @@ func (adapter *Adapter) finish(native *nativeAttempt, status string) {
 		native.runtime.finish(result, harnessadapter.TerminalEvent{EventBase: base, Outcome: result.Outcome, Usage: usage, EffectStatus: result.EffectStatus})
 	case "failed":
 		failure := taskFailure("codex_turn_failed", "codex turn failed")
-		result := harnessadapter.ReconcileResult{Outcome: harnessadapter.ReconcileFailed, Usage: usage, Failure: failure, EffectStatus: "unknown"}
+		effectStatus := "unknown"
+		if rejection != nil {
+			failure = rejection
+			if preExecution {
+				effectStatus = "none"
+			}
+		}
+		result := harnessadapter.ReconcileResult{Outcome: harnessadapter.ReconcileFailed, Usage: usage, Failure: failure, EffectStatus: effectStatus}
 		native.runtime.finish(result, harnessadapter.TerminalEvent{EventBase: base, Outcome: result.Outcome, Usage: usage, Failure: failure, EffectStatus: result.EffectStatus})
 	default:
 		native.runtime.failUnknown("provider_state")
 	}
 	_ = adapter.store.terminal(native.reference)
+}
+
+func (native *nativeAttempt) observeExecution() {
+	native.mu.Lock()
+	native.executionObserved = true
+	native.mu.Unlock()
+}
+
+// Only the observed Codex 0.155.1 request rejection is allowlisted. HTTP 400,
+// "failed", or an arbitrary provider message alone say nothing about effects.
+// Never project provider text: it can contain prompts, credentials or URLs.
+var rejectionModelPattern = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9._-]{0,127}$`)
+
+func unsupportedModelFailure(providerError *nativeTurnError, model string) *harnessadapter.Failure {
+	if providerError == nil || len(providerError.Message) > 64<<10 ||
+		!rejectionModelPattern.MatchString(model) || !strictjson.Valid([]byte(providerError.Message)) {
+		return nil
+	}
+	var info string
+	if json.Unmarshal(providerError.CodexErrorInfo, &info) != nil || info != "other" {
+		return nil
+	}
+	var envelope struct {
+		Type   string `json:"type"`
+		Status int    `json:"status"`
+		Error  struct {
+			Type    string `json:"type"`
+			Message string `json:"message"`
+		} `json:"error"`
+	}
+	if !decodeStrict([]byte(providerError.Message), &envelope) || envelope.Type != "error" || envelope.Status != 400 ||
+		envelope.Error.Type != "invalid_request_error" ||
+		envelope.Error.Message != "The '"+model+"' model is not supported when using Codex with a ChatGPT account." {
+		return nil
+	}
+	return taskFailure("codex_model_unsupported", "The configured Codex model is not supported by this ChatGPT account. Select an available model before retrying.")
 }
 
 func (adapter *Adapter) handleExit() {

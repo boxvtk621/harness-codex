@@ -19,6 +19,55 @@ type reconcileAdapter struct {
 	result  harnessadapter.ReconcileResult
 }
 
+func TestFailedTerminalReleasesAdmissionOnlyWithResolvedEffects(t *testing.T) {
+	for _, effect := range []string{"none", "unknown"} {
+		t.Run(effect, func(t *testing.T) {
+			config := testConfig(t.TempDir())
+			config.Adapter = fixture.NewAdapter()
+			config.Policies = fixture.NewPolicySource()
+			opened, reference := runningAttemptWithConfig(t, config)
+			defer opened.Close()
+			failure := &harnessadapter.Failure{Class: harnessadapter.FailureTask, Code: "codex_model_unsupported", SafeMessage: "Select an available model before retrying."}
+			err := opened.ObserveAdapterEvent(context.Background(), reference, harnessadapter.TerminalEvent{
+				EventBase: harnessadapter.EventBase{Attempt: reference}, Outcome: harnessadapter.ReconcileFailed, Failure: failure, EffectStatus: effect,
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			var snapshot harnessprotocol.Snapshot
+			result := opened.Snapshot(context.Background(), nodeTrust())
+			if result.HTTPStatus != 200 || json.Unmarshal(result.Body, &snapshot) != nil {
+				t.Fatalf("snapshot: %s", result.Body)
+			}
+			var read harnessprotocol.AttemptRead
+			attempt := opened.Attempt(context.Background(), nodeTrust(), reference.AttemptID)
+			if attempt.HTTPStatus != 200 || json.Unmarshal(attempt.Body, &read) != nil {
+				t.Fatalf("attempt: %s", attempt.Body)
+			}
+			if effect == "none" {
+				if snapshot.ActiveAttempt != nil || snapshot.Node.Occupancy != "idle" || read.Attempt.State != "failed" || read.Attempt.EffectStatus != "none" {
+					t.Fatalf("proven rejection retained fence: %+v %+v", snapshot, read)
+				}
+				found := false
+				for _, event := range attemptEvents(t, context.Background(), opened, reference.AttemptID) {
+					if event.Type == "attempt.failed" {
+						var payload harnessprotocol.AttemptFailedPayload
+						if json.Unmarshal(event.Payload, &payload) != nil || payload.ErrorCode != failure.Code || payload.SafeMessage != failure.SafeMessage || payload.Retryable {
+							t.Fatalf("failure payload: %s", event.Payload)
+						}
+						found = true
+					}
+				}
+				if !found {
+					t.Fatal("safe failure diagnostic missing")
+				}
+			} else if snapshot.ActiveAttempt == nil || snapshot.Node.Occupancy != "unknown" || read.Attempt.State != "unknown" || read.Attempt.EffectStatus != "unknown" {
+				t.Fatalf("ambiguous rejection released fence: %+v %+v", snapshot, read)
+			}
+		})
+	}
+}
+
 func (adapter *reconcileAdapter) Reconcile(ctx context.Context, input harnessadapter.ReconcileInput) (harnessadapter.ReconcileResult, error) {
 	if adapter.called != nil {
 		select {
