@@ -19,6 +19,7 @@ import (
 	"github.com/boxvtk621/harness-codex/internal/diagnosticlog"
 	"github.com/boxvtk621/harness-codex/internal/harnessadapter"
 	"github.com/boxvtk621/harness-codex/internal/harnessprotocol"
+	"github.com/boxvtk621/harness-codex/internal/nodesettings"
 	"github.com/boxvtk621/harness-codex/internal/toolrunner"
 	"github.com/boxvtk621/harness-codex/runtime"
 )
@@ -183,6 +184,7 @@ type Adapter struct {
 }
 
 var _ harnessadapter.Adapter = (*Adapter)(nil)
+var _ nodesettings.Provider = (*Adapter)(nil)
 
 func New(config Config, artifacts node.ArtifactSink) (*Adapter, error) {
 	home, homeOK := exactEnvironmentPath(config.Environment, "HOME")
@@ -266,6 +268,112 @@ func (adapter *Adapter) Identity(context.Context) (harnessadapter.Identity, erro
 		ProtocolVersion: harnessprotocol.ProtocolVersion, SchemaID: harnessprotocol.SchemaID,
 		SchemaSHA256: harnessprotocol.SchemaSHA256, Declared: declared, Verified: verified,
 	}, nil
+}
+
+type nativeReasoningEffort struct {
+	ReasoningEffort string `json:"reasoningEffort"`
+}
+type nativeServiceTier struct {
+	ID string `json:"id"`
+}
+type nativeModel struct {
+	ID                        string                  `json:"id"`
+	Model                     string                  `json:"model"`
+	SupportedReasoningEfforts []nativeReasoningEffort `json:"supportedReasoningEfforts"`
+	DefaultReasoningEffort    *string                 `json:"defaultReasoningEffort"`
+	ServiceTiers              []nativeServiceTier     `json:"serviceTiers"`
+	DefaultServiceTier        *string                 `json:"defaultServiceTier"`
+	AdditionalSpeedTiers      []string                `json:"additionalSpeedTiers"`
+}
+
+func (adapter *Adapter) ListModels(ctx context.Context, cursor string, limit int) (nodesettings.ModelPage, error) {
+	if limit < 1 || limit > 100 || len(cursor) > 512 {
+		return nodesettings.ModelPage{}, nodesettings.ErrInvalid
+	}
+	adapter.mu.Lock()
+	closed, session := adapter.closed, adapter.session
+	adapter.mu.Unlock()
+	if closed || session == nil {
+		return nodesettings.ModelPage{}, errors.New("codex app-server is unavailable")
+	}
+	params := map[string]any{"limit": limit, "includeHidden": true}
+	if cursor != "" {
+		params["cursor"] = cursor
+	}
+	var response struct {
+		Data       []nativeModel `json:"data"`
+		NextCursor *string       `json:"nextCursor"`
+	}
+	operationCtx, cancel := adapter.operationContext(ctx)
+	defer cancel()
+	if err := session.Call(operationCtx, "model/list", params, &response); err != nil {
+		return nodesettings.ModelPage{}, fmt.Errorf("list codex models: %w", err)
+	}
+	if response.Data == nil || response.NextCursor != nil && (!boundedSessionText(*response.NextCursor, 512) || *response.NextCursor == cursor) {
+		return nodesettings.ModelPage{}, errors.New("codex model catalog response is invalid")
+	}
+	page := nodesettings.ModelPage{Models: make([]nodesettings.Model, 0, len(response.Data)), NextCursor: response.NextCursor, ProcessGeneration: session.ProcessGeneration(), Fresh: true}
+	seen := map[string]bool{}
+	for _, native := range response.Data {
+		if !boundedSessionText(native.ID, 256) || !boundedSessionText(native.Model, 256) || seen[native.ID] {
+			return nodesettings.ModelPage{}, errors.New("codex model catalog item is invalid")
+		}
+		seen[native.ID] = true
+		model := nodesettings.Model{ID: native.ID, Model: native.Model, DefaultReasoningEffort: native.DefaultReasoningEffort, DefaultServiceTier: native.DefaultServiceTier, AdditionalSpeedTiers: append([]string(nil), native.AdditionalSpeedTiers...)}
+		for _, effort := range native.SupportedReasoningEfforts {
+			model.SupportedReasoningEfforts = append(model.SupportedReasoningEfforts, effort.ReasoningEffort)
+		}
+		for _, tier := range native.ServiceTiers {
+			model.ServiceTiers = append(model.ServiceTiers, tier.ID)
+		}
+		if !validCatalogModel(model) {
+			return nodesettings.ModelPage{}, errors.New("codex model capability item is invalid")
+		}
+		page.Models = append(page.Models, model)
+	}
+	return page, nil
+}
+
+func (adapter *Adapter) CheckMCP(_ context.Context, server nodesettings.MCPConfig) (nodesettings.MCPCheck, error) {
+	adapter.mu.Lock()
+	closed, session := adapter.closed, adapter.session
+	adapter.mu.Unlock()
+	if closed || session == nil {
+		return nodesettings.MCPCheck{}, errors.New("codex app-server is unavailable")
+	}
+	// mcpServerStatus/list is thread-scoped. Until the common managed process
+	// lifecycle can materialize the draft into native config, claiming a check
+	// here would test a different configuration.
+	return nodesettings.MCPCheck{MCPID: server.ID, Status: "unavailable", ErrorCode: "native_restart_unsupported", ProcessGeneration: session.ProcessGeneration()}, nil
+}
+
+func (adapter *Adapter) ApplySettings(context.Context, nodesettings.Settings, []nodesettings.MCPConfig) error {
+	return nodesettings.ErrUnsupported
+}
+
+func validCatalogModel(model nodesettings.Model) bool {
+	unique := func(values []string) bool {
+		seen := map[string]bool{}
+		for _, value := range values {
+			if !boundedSessionText(value, 256) || seen[value] {
+				return false
+			}
+			seen[value] = true
+		}
+		return true
+	}
+	if !unique(model.SupportedReasoningEfforts) || !unique(model.ServiceTiers) || !unique(model.AdditionalSpeedTiers) {
+		return false
+	}
+	contains := func(values []string, target string) bool {
+		for _, value := range values {
+			if value == target {
+				return true
+			}
+		}
+		return false
+	}
+	return (model.DefaultReasoningEffort == nil || contains(model.SupportedReasoningEfforts, *model.DefaultReasoningEffort)) && (model.DefaultServiceTier == nil || contains(model.ServiceTiers, *model.DefaultServiceTier))
 }
 
 func (adapter *Adapter) Start(ctx context.Context, input harnessadapter.StartInput) (harnessadapter.StartResult, error) {

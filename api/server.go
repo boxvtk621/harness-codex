@@ -16,14 +16,16 @@ import (
 	"github.com/boxvtk621/harness-codex/internal/harnessbarrier"
 	"github.com/boxvtk621/harness-codex/internal/harnessprotocol"
 	"github.com/boxvtk621/harness-codex/internal/historyreplica"
+	"github.com/boxvtk621/harness-codex/internal/nodesettings"
 	"github.com/boxvtk621/harness-codex/internal/providerauth"
 	"github.com/boxvtk621/harness-codex/internal/transcriptview"
 	"github.com/boxvtk621/harness-codex/runtime"
 )
 
 type Config struct {
-	NodeID string
-	Logger diagnosticlog.Sink
+	NodeID       string
+	Logger       diagnosticlog.Sink
+	NodeSettings *nodesettings.Service
 }
 
 func New(config Config, authority *node.Node) (http.Handler, error) {
@@ -46,6 +48,13 @@ func New(config Config, authority *node.Node) (http.Handler, error) {
 	mux.HandleFunc("POST /v1/provider-auth/logout", server.providerAuthLogout)
 	mux.HandleFunc("GET /v1/executor/heartbeat", server.executorHeartbeat)
 	mux.HandleFunc("GET /v1/nodes/{nodeId}/identity", server.identity)
+	mux.HandleFunc("GET /v1/nodes/{nodeId}/settings", server.nodeSettingsGet)
+	mux.HandleFunc("PUT /v1/nodes/{nodeId}/settings", server.nodeSettingsPut)
+	mux.HandleFunc("GET /v1/nodes/{nodeId}/settings/model-catalog", server.nodeSettingsModels)
+	mux.HandleFunc("POST /v1/nodes/{nodeId}/settings/model-catalog", server.nodeSettingsModels)
+	mux.HandleFunc("POST /v1/nodes/{nodeId}/settings/mcp-checks", server.nodeSettingsMCPCheck)
+	mux.HandleFunc("POST /v1/nodes/{nodeId}/settings/apply", server.nodeSettingsApply)
+	mux.HandleFunc("GET /v1/nodes/{nodeId}/settings/operations/{operationId}", server.nodeSettingsOperation)
 	mux.HandleFunc("GET /v1/nodes/{nodeId}/admission", server.admission)
 	mux.HandleFunc("GET /v1/nodes/{nodeId}/snapshot", server.snapshot)
 	mux.HandleFunc("GET /v1/nodes/{nodeId}/dialogs", server.dialogs)
@@ -72,6 +81,183 @@ func New(config Config, authority *node.Node) (http.Handler, error) {
 	mux.HandleFunc("GET /v1/nodes/{nodeId}/administration/logical-deletes/{operationId}", server.logicalDeleteStatus)
 	server.handler = mux
 	return server, nil
+}
+
+func (server *Server) nodeSettingsGet(writer http.ResponseWriter, request *http.Request) {
+	if !server.nodeSettingsAuthorized(writer, request) {
+		return
+	}
+	if !validQuery(request) {
+		writeNodeSettingsError(writer, nodesettings.ErrInvalid)
+		return
+	}
+	writeNodeSettings(writer, http.StatusOK, server.config.NodeSettings.Snapshot())
+}
+
+func (server *Server) nodeSettingsPut(writer http.ResponseWriter, request *http.Request) {
+	if !server.nodeSettingsAuthorized(writer, request) {
+		return
+	}
+	if !validQuery(request) {
+		writeNodeSettingsError(writer, nodesettings.ErrInvalid)
+		return
+	}
+	var input nodesettings.SettingsInput
+	if !decodeNodeSettingsJSON(writer, request, &input) {
+		return
+	}
+	snapshot, err := server.config.NodeSettings.Update(input)
+	if errors.Is(err, nodesettings.ErrStale) {
+		writeNodeSettings(writer, http.StatusConflict, snapshot)
+		return
+	}
+	if err != nil {
+		writeNodeSettingsError(writer, err)
+		return
+	}
+	writeNodeSettings(writer, http.StatusOK, snapshot)
+}
+
+func (server *Server) nodeSettingsModels(writer http.ResponseWriter, request *http.Request) {
+	if !server.nodeSettingsAuthorized(writer, request) {
+		return
+	}
+	if !validQuery(request, "cursor", "limit") {
+		writeNodeSettingsError(writer, nodesettings.ErrInvalid)
+		return
+	}
+	limit := 50
+	if raw := request.URL.Query().Get("limit"); raw != "" {
+		parsed, err := strconv.Atoi(raw)
+		if err != nil {
+			writeNodeSettingsError(writer, nodesettings.ErrInvalid)
+			return
+		}
+		limit = parsed
+	}
+	page, err := server.config.NodeSettings.Models(request.Context(), request.URL.Query().Get("cursor"), limit)
+	if err != nil {
+		writeNodeSettingsError(writer, err)
+		return
+	}
+	writeNodeSettings(writer, http.StatusOK, page)
+}
+
+func (server *Server) nodeSettingsMCPCheck(writer http.ResponseWriter, request *http.Request) {
+	if !server.nodeSettingsAuthorized(writer, request) {
+		return
+	}
+	if !validQuery(request) {
+		writeNodeSettingsError(writer, nodesettings.ErrInvalid)
+		return
+	}
+	var input struct {
+		ExpectedRevision int64  `json:"expectedRevision"`
+		MCPID            string `json:"mcpServerId"`
+	}
+	if !decodeNodeSettingsJSON(writer, request, &input) {
+		return
+	}
+	result, err := server.config.NodeSettings.CheckMCP(request.Context(), input.ExpectedRevision, input.MCPID)
+	if err != nil {
+		writeNodeSettingsError(writer, err)
+		return
+	}
+	writeNodeSettings(writer, http.StatusOK, result)
+}
+
+func (server *Server) nodeSettingsApply(writer http.ResponseWriter, request *http.Request) {
+	if !server.nodeSettingsAuthorized(writer, request) {
+		return
+	}
+	if !validQuery(request) {
+		writeNodeSettingsError(writer, nodesettings.ErrInvalid)
+		return
+	}
+	var input nodesettings.ApplyRequest
+	if !decodeNodeSettingsJSON(writer, request, &input) {
+		return
+	}
+	operation, err := server.config.NodeSettings.Apply(request.Context(), input)
+	if err != nil {
+		writeNodeSettingsError(writer, err)
+		return
+	}
+	status := http.StatusAccepted
+	if operation.Status != "running" {
+		status = http.StatusOK
+	}
+	snapshot := server.config.NodeSettings.Snapshot()
+	snapshot.Operation = &operation
+	writeNodeSettings(writer, status, snapshot)
+}
+
+func (server *Server) nodeSettingsOperation(writer http.ResponseWriter, request *http.Request) {
+	if !server.nodeSettingsAuthorized(writer, request) {
+		return
+	}
+	if !validQuery(request) {
+		writeNodeSettingsError(writer, nodesettings.ErrInvalid)
+		return
+	}
+	operation, err := server.config.NodeSettings.Operation(request.PathValue("operationId"))
+	if err != nil {
+		writeNodeSettingsError(writer, err)
+		return
+	}
+	snapshot := server.config.NodeSettings.Snapshot()
+	snapshot.Operation = &operation
+	writeNodeSettings(writer, http.StatusOK, snapshot)
+}
+
+func (server *Server) nodeSettingsAuthorized(writer http.ResponseWriter, request *http.Request) bool {
+	if _, ok := server.authenticate(writer, request); !ok {
+		return false
+	}
+	if server.config.NodeSettings == nil {
+		writeNodeSettings(writer, http.StatusUnprocessableEntity, map[string]string{"code": "unsupported"})
+		return false
+	}
+	if request.PathValue("nodeId") != server.config.NodeID {
+		writeNodeSettings(writer, http.StatusNotFound, map[string]string{"code": "not_found"})
+		return false
+	}
+	return true
+}
+
+func decodeNodeSettingsJSON(writer http.ResponseWriter, request *http.Request, output any) bool {
+	reader := http.MaxBytesReader(writer, request.Body, 1<<20)
+	decoder := json.NewDecoder(reader)
+	decoder.DisallowUnknownFields()
+	if decoder.Decode(output) != nil || decoder.Decode(new(any)) != io.EOF {
+		writeNodeSettingsError(writer, nodesettings.ErrInvalid)
+		return false
+	}
+	return true
+}
+
+func writeNodeSettingsError(writer http.ResponseWriter, err error) {
+	status, code := http.StatusServiceUnavailable, "provider_unavailable"
+	switch {
+	case errors.Is(err, nodesettings.ErrInvalid):
+		status, code = http.StatusBadRequest, "invalid"
+	case errors.Is(err, nodesettings.ErrStale):
+		status, code = http.StatusConflict, "stale"
+	case errors.Is(err, nodesettings.ErrIDConflict):
+		status, code = http.StatusConflict, "id_conflict"
+	case errors.Is(err, nodesettings.ErrNotFound):
+		status, code = http.StatusNotFound, "not_found"
+	case errors.Is(err, nodesettings.ErrUnsupported):
+		status, code = http.StatusUnprocessableEntity, "unsupported"
+	}
+	writeNodeSettings(writer, status, map[string]string{"code": code})
+}
+
+func writeNodeSettings(writer http.ResponseWriter, status int, value any) {
+	writer.Header().Set("Content-Type", "application/json")
+	writer.Header().Set("Cache-Control", "no-store")
+	writer.WriteHeader(status)
+	_ = json.NewEncoder(writer).Encode(value)
 }
 
 type providerAuthCommandRequest struct {

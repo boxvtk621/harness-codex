@@ -25,6 +25,7 @@ import (
 	harnessserver "github.com/boxvtk621/harness-codex/api"
 	"github.com/boxvtk621/harness-codex/internal/diagnosticlog"
 	"github.com/boxvtk621/harness-codex/internal/harnessadapter"
+	"github.com/boxvtk621/harness-codex/internal/nodesettings"
 	"github.com/boxvtk621/harness-codex/internal/providerauth"
 	"github.com/boxvtk621/harness-codex/internal/toolrunner"
 	runtime "github.com/boxvtk621/harness-codex/runtime"
@@ -65,6 +66,7 @@ type codexConfig struct {
 type providerAdapter interface {
 	harnessadapter.Adapter
 	providerauth.Manager
+	nodesettings.Provider
 	Close() error
 }
 
@@ -303,7 +305,11 @@ func serve(ctx context.Context, path string, diagnostics diagnosticlog.Sink) err
 		return err
 	}
 	defer authority.Close()
-	handler, err := harnessserver.New(harnessserver.Config{NodeID: cfg.NodeID, Logger: diagnostics}, authority)
+	settings, err := nodesettings.Open(cfg.DataDir, cfg.NodeID, adapter)
+	if err != nil {
+		return err
+	}
+	handler, err := harnessserver.New(harnessserver.Config{NodeID: cfg.NodeID, Logger: diagnostics, NodeSettings: settings}, authority)
 	if err != nil {
 		return err
 	}
