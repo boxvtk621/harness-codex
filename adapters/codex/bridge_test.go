@@ -40,7 +40,7 @@ func TestBridgeRoutesCallsNotificationsAndServerRequests(t *testing.T) {
 	if err := bridge.call(context.Background(), "initialize", map[string]any{"clientInfo": map[string]string{"name": "Harness", "version": "1"}}, &result); err != nil {
 		t.Fatal(err)
 	}
-	if result.Version != "0.153.4" {
+	if result.Version != "0.155.1" {
 		t.Fatalf("version = %q", result.Version)
 	}
 	if err := bridge.notify("initialized", map[string]any{}); err != nil {
@@ -195,7 +195,7 @@ func TestBridgeInitializesPinnedLocalAppServer(t *testing.T) {
 	}, &initialized); err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(initialized.UserAgent, "0.153.4") {
+	if !strings.Contains(initialized.UserAgent, "0.155.1") {
 		t.Fatalf("unexpected app-server user agent %q", initialized.UserAgent)
 	}
 	if err := bridge.notify("initialized", map[string]any{}); err != nil {
@@ -270,7 +270,7 @@ func runBridgeHelper() int {
 		requests++
 		switch frame.Method {
 		case "initialize":
-			_ = encoder.Encode(map[string]any{"id": frame.ID, "result": map[string]string{"version": "0.153.4"}})
+			_ = encoder.Encode(map[string]any{"id": frame.ID, "result": map[string]string{"version": "0.155.1"}})
 		case "fixture/ignore":
 			continue
 		case "fixture/count":

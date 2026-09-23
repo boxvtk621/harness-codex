@@ -15,7 +15,7 @@ FROM node:24.18.0-bookworm-slim@sha256:6f7b03f7c2c8e2e784dcf9295400527b9b1270fd3
 WORKDIR /opt/codex
 COPY adapters/codex/runtime/package.json adapters/codex/runtime/package-lock.json ./
 RUN npm ci --ignore-scripts --no-audit --no-fund \
-    && test "$(./node_modules/.bin/codex --version)" = "codex-cli 0.153.4"
+    && test "$(./node_modules/.bin/codex --version)" = "codex-cli 0.155.1"
 COPY --from=build /harness-node /harness-node
 COPY --from=build --chown=0:0 --chmod=0555 /harness-tool-runner /harness-tool-runner
 COPY --from=build /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt

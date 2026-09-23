@@ -11,7 +11,7 @@
     "nodeId": {"type": "string", "format": "uuid"},
     "registrationRevision": {"type": "integer", "minimum": 1, "maximum": 9007199254740991},
     "identityEpoch": {"type": "integer", "minimum": 1, "maximum": 9007199254740991},
-    "wireSchemaSHA256": {"const": "5bd97f2ea08854a8e56d46ff11a1539e6bc54e8ca6d42841b366561accba73d9"},
+    "wireSchemaSHA256": {"const": "5013223c4f77ac7424a486d7223c5321eb7f0e9054fb036e48d6e7748fae1889"},
     "adapter": {
       "oneOf": [
         {
@@ -24,7 +24,7 @@
           "type": "object",
           "additionalProperties": false,
           "required": ["kind", "version"],
-          "properties": {"kind": {"const": "codex"}, "version": {"const": "0.153.4"}}
+          "properties": {"kind": {"const": "codex"}, "version": {"const": "0.155.1"}}
         }
       ]
     },

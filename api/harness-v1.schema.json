@@ -9497,7 +9497,7 @@
                   "const": "codex"
                 },
                 "version": {
-                  "const": "0.153.4"
+                  "const": "0.155.1"
                 }
               },
               "required": [
@@ -9677,7 +9677,7 @@
                       "const": "codex"
                     },
                     "version": {
-                      "const": "0.153.4"
+                      "const": "0.155.1"
                     }
                   },
                   "required": [

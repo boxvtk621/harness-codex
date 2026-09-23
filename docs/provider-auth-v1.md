@@ -18,7 +18,7 @@ All successful routes return the envelope defined by
 `secret` input is rejected and API keys, passwords, cookies, access tokens and
 refresh tokens are never accepted by Harness.
 
-The Codex implementation uses the pinned App Server `0.153.4` methods
+The Codex implementation uses the pinned App Server `0.155.1` methods
 `account/read`, `account/login/start` with `type=chatgptDeviceCode`,
 `account/login/cancel` and `account/logout`. The pinned CLI-generated schema was
 checked as part of HL-306, independently of the current
