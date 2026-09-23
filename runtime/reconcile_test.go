@@ -3,20 +3,85 @@ package node_test
 import (
 	"context"
 	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
 
+	api "github.com/boxvtk621/harness-codex/api"
 	"github.com/boxvtk621/harness-codex/fixture"
 	"github.com/boxvtk621/harness-codex/internal/harnessadapter"
 	"github.com/boxvtk621/harness-codex/internal/harnessprotocol"
+	"github.com/boxvtk621/harness-codex/internal/nodesettings"
 	"github.com/boxvtk621/harness-codex/runtime"
 )
+
+type startupSettingsProvider struct{}
+
+func (startupSettingsProvider) ListModels(context.Context, string, int) (nodesettings.ModelPage, error) {
+	return nodesettings.ModelPage{}, nil
+}
+func (startupSettingsProvider) CheckMCP(context.Context, nodesettings.MCPConfig) (nodesettings.MCPCheck, error) {
+	return nodesettings.MCPCheck{}, nil
+}
+func (startupSettingsProvider) ApplySettings(context.Context, nodesettings.Settings, []nodesettings.MCPConfig) error {
+	return nil
+}
 
 type reconcileAdapter struct {
 	*fixture.Adapter
 	called  chan<- struct{}
 	release <-chan struct{}
 	result  harnessadapter.ReconcileResult
+}
+
+func TestFailedTerminalReleasesAdmissionOnlyWithResolvedEffects(t *testing.T) {
+	for _, effect := range []string{"none", "unknown"} {
+		t.Run(effect, func(t *testing.T) {
+			config := testConfig(t.TempDir())
+			config.Adapter = fixture.NewAdapter()
+			config.Policies = fixture.NewPolicySource()
+			opened, reference := runningAttemptWithConfig(t, config)
+			defer opened.Close()
+			failure := &harnessadapter.Failure{Class: harnessadapter.FailureTask, Code: "codex_model_unsupported", SafeMessage: "Select an available model before retrying."}
+			err := opened.ObserveAdapterEvent(context.Background(), reference, harnessadapter.TerminalEvent{
+				EventBase: harnessadapter.EventBase{Attempt: reference}, Outcome: harnessadapter.ReconcileFailed, Failure: failure, EffectStatus: effect,
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			var snapshot harnessprotocol.Snapshot
+			result := opened.Snapshot(context.Background(), nodeTrust())
+			if result.HTTPStatus != 200 || json.Unmarshal(result.Body, &snapshot) != nil {
+				t.Fatalf("snapshot: %s", result.Body)
+			}
+			var read harnessprotocol.AttemptRead
+			attempt := opened.Attempt(context.Background(), nodeTrust(), reference.AttemptID)
+			if attempt.HTTPStatus != 200 || json.Unmarshal(attempt.Body, &read) != nil {
+				t.Fatalf("attempt: %s", attempt.Body)
+			}
+			if effect == "none" {
+				if snapshot.ActiveAttempt != nil || snapshot.Node.Occupancy != "idle" || read.Attempt.State != "failed" || read.Attempt.EffectStatus != "none" {
+					t.Fatalf("proven rejection retained fence: %+v %+v", snapshot, read)
+				}
+				found := false
+				for _, event := range attemptEvents(t, context.Background(), opened, reference.AttemptID) {
+					if event.Type == "attempt.failed" {
+						var payload harnessprotocol.AttemptFailedPayload
+						if json.Unmarshal(event.Payload, &payload) != nil || payload.ErrorCode != failure.Code || payload.SafeMessage != failure.SafeMessage || payload.Retryable {
+							t.Fatalf("failure payload: %s", event.Payload)
+						}
+						found = true
+					}
+				}
+				if !found {
+					t.Fatal("safe failure diagnostic missing")
+				}
+			} else if snapshot.ActiveAttempt == nil || snapshot.Node.Occupancy != "unknown" || read.Attempt.State != "unknown" || read.Attempt.EffectStatus != "unknown" {
+				t.Fatalf("ambiguous rejection released fence: %+v %+v", snapshot, read)
+			}
+		})
+	}
 }
 
 func (adapter *reconcileAdapter) Reconcile(ctx context.Context, input harnessadapter.ReconcileInput) (harnessadapter.ReconcileResult, error) {
@@ -298,5 +363,57 @@ func TestReconcileUnknownRejectsUnprovedEffectStatus(t *testing.T) {
 				t.Fatalf("invalid effect status released fence: %+v", snapshot)
 			}
 		})
+	}
+}
+
+func TestUnknownAttemptRestartStillServesNodeAPI(t *testing.T) {
+	path := t.TempDir()
+	config := testConfig(path)
+	config.Policies = fixture.NewPolicySource()
+	opened, reference := runningAttemptWithConfig(t, config)
+	if err := opened.Observe(context.Background(), node.Observation{
+		AttemptID: reference.AttemptID, Generation: reference.Generation,
+		Kind: "unknown", Reason: "provider_state", EffectStatus: "unknown",
+	}); err != nil {
+		opened.Close()
+		t.Fatal(err)
+	}
+	if err := opened.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	reopened, err := node.Open(context.Background(), config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer reopened.Close()
+	settings, err := nodesettings.Open(path, testNodeID, startupSettingsProvider{})
+	if err != nil {
+		t.Fatalf("node settings blocked restart with unknown attempt: %v", err)
+	}
+	handler, err := api.New(api.Config{NodeID: testNodeID, NodeSettings: settings}, reopened)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, check := range []struct {
+		path string
+		want int
+	}{
+		{path: "/health/live", want: http.StatusOK},
+		{path: "/health/ready", want: http.StatusOK},
+		{path: "/v1/nodes/" + testNodeID + "/identity", want: http.StatusOK},
+		{path: "/v1/nodes/" + testNodeID + "/settings", want: http.StatusOK},
+	} {
+		response := httptest.NewRecorder()
+		handler.ServeHTTP(response, httptest.NewRequest(http.MethodGet, check.path, nil))
+		if response.Code != check.want {
+			t.Fatalf("GET %s = %d, want %d: %s", check.path, response.Code, check.want, response.Body.String())
+		}
+	}
+	var health harnessprotocol.HealthReady
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/health/ready", nil))
+	if json.Unmarshal(response.Body.Bytes(), &health) != nil || health.Readiness != "unknown" {
+		t.Fatalf("unknown readiness was not exposed: %s", response.Body.String())
 	}
 }

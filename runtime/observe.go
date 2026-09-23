@@ -155,9 +155,13 @@ func (node *Node) ObserveAdapterEvent(ctx context.Context, expected harnessadapt
 	}
 	switch value := event.(type) {
 	case harnessadapter.TerminalEvent:
+		reason := ""
+		if value.Failure != nil {
+			reason = value.Failure.Code
+		}
 		node.config.Logger.Emit(diagnosticlog.LevelInfo, diagnosticlog.EventAttemptTerminal, diagnosticlog.Fields{
 			NodeID: actual.NodeID, DialogID: actual.DialogID, RequestID: actual.RequestID, AttemptID: actual.AttemptID,
-			Generation: actual.Generation, Outcome: string(value.Outcome), EffectStatus: value.EffectStatus,
+			Generation: actual.Generation, Outcome: string(value.Outcome), EffectStatus: value.EffectStatus, Reason: reason,
 		})
 	case harnessadapter.UnknownEvent:
 		node.config.Logger.Emit(diagnosticlog.LevelWarn, diagnosticlog.EventAttemptUnknown, diagnosticlog.Fields{

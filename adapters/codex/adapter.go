@@ -116,6 +116,11 @@ type nativeAttempt struct {
 	policyHash  string
 	workspace   string
 	toolCalls   int
+	// Sticky evidence: a later request rejection cannot erase earlier execution
+	// or an ambiguous retry in this turn.
+	executionObserved   bool
+	retryObserved       bool
+	turnStartedObserved bool
 }
 
 type nativeTool struct {
@@ -663,6 +668,7 @@ func (adapter *Adapter) Steer(ctx context.Context, input harnessadapter.SteerInp
 	if native == nil {
 		return harnessadapter.SteerResult{Outcome: harnessadapter.SteerUnknown, Failure: nodeFailure("codex_turn_unavailable", "codex turn is unavailable", true)}, nil
 	}
+	native.observeExecution()
 	var response struct {
 		TurnID string `json:"turnId"`
 	}
@@ -686,6 +692,7 @@ func (adapter *Adapter) Cancel(ctx context.Context, input harnessadapter.CancelI
 	if native == nil {
 		return harnessadapter.CancelResult{Outcome: harnessadapter.CancelUnknown, Failure: nodeFailure("codex_turn_unavailable", "codex turn is unavailable", true)}, nil
 	}
+	native.observeExecution()
 	operationCtx, cancel := adapter.operationContext(ctx)
 	defer cancel()
 	err := adapter.session.CallAfterWrite(operationCtx, "turn/interrupt", map[string]string{"threadId": mapping.ThreadID, "turnId": mapping.TurnID}, &struct{}{}, native.cancelTools)
