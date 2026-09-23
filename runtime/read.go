@@ -85,7 +85,12 @@ func (node *Node) Snapshot(ctx context.Context, trust TrustContext) Result {
 	if err := tx.Commit(); err != nil {
 		return node.errorResult(http.StatusServiceUnavailable, "not_durable", "snapshot is unavailable", "", nil, "")
 	}
-	return node.wireResult("snapshot", harnessprotocol.Snapshot{ProtocolVersion: harnessprotocol.ProtocolVersion, SchemaID: harnessprotocol.SchemaID, NodeID: state.NodeID, Epoch: state.Epoch, StateVersion: state.StateVersion, LastEventSeq: state.LastEventSeq, CapturedAt: timestamp(node.config.Clock()), Node: nodePayload(state), PendingQueue: requests, ActiveAttempt: active, Completeness: "complete"})
+	payload := nodePayload(state)
+	if node.settingsNotReady || node.settingsBarrier {
+		payload.EngineReadiness = "blocked"
+		payload.BlockedReasons = addReason(append([]string(nil), payload.BlockedReasons...), "engine_unavailable")
+	}
+	return node.wireResult("snapshot", harnessprotocol.Snapshot{ProtocolVersion: harnessprotocol.ProtocolVersion, SchemaID: harnessprotocol.SchemaID, NodeID: state.NodeID, Epoch: state.Epoch, StateVersion: state.StateVersion, LastEventSeq: state.LastEventSeq, CapturedAt: timestamp(node.config.Clock()), Node: payload, PendingQueue: requests, ActiveAttempt: active, Completeness: "complete"})
 }
 
 func (node *Node) CommandStatus(ctx context.Context, trust TrustContext, commandID string) Result {
@@ -200,12 +205,13 @@ func (node *Node) ExecutorHeartbeat(ctx context.Context, trust TrustContext) Res
 	}
 	node.mu.Lock()
 	state, err := loadState(ctx, node.db)
+	settingsBlocked := node.settingsNotReady || node.settingsBarrier
 	node.mu.Unlock()
 	if err != nil {
 		return node.errorResult(http.StatusServiceUnavailable, "not_durable", "executor heartbeat is unavailable", "", nil, "")
 	}
 	readiness := state.EngineReadiness
-	if !node.providerAuthReady(ctx) {
+	if !node.providerAuthReady(ctx) || settingsBlocked {
 		readiness = "blocked"
 	}
 	body, err := json.Marshal(struct {
@@ -228,6 +234,7 @@ func (node *Node) HealthReady(ctx context.Context, trust TrustContext) Result {
 	}
 	node.mu.Lock()
 	state, err := loadState(ctx, node.db)
+	settingsBlocked := node.settingsNotReady || node.settingsBarrier
 	node.mu.Unlock()
 	if err != nil {
 		return node.errorResult(http.StatusServiceUnavailable, "not_durable", "readiness is unavailable", "", nil, "")
@@ -245,6 +252,10 @@ func (node *Node) HealthReady(ctx context.Context, trust TrustContext) Result {
 	if !node.providerAuthReady(ctx) {
 		readiness = "blocked"
 		reasons = addReason(reasons, "auth_unavailable")
+	}
+	if settingsBlocked {
+		readiness = "blocked"
+		reasons = addReason(reasons, "engine_unavailable")
 	}
 	return node.wireResult("healthReady", harnessprotocol.HealthReady{ProtocolVersion: harnessprotocol.ProtocolVersion, SchemaID: harnessprotocol.SchemaID, CheckedAt: timestamp(node.config.Clock()), Identity: identity, Readiness: readiness, BlockedReasons: reasons})
 }

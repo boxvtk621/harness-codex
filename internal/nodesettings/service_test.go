@@ -8,9 +8,44 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 )
 
+type immediateLifecycle struct{}
+
+func (immediateLifecycle) BeginSettingsChange(context.Context) (func(), error) { return func() {}, nil }
+
+func awaitOperation(t *testing.T, service *Service, id string) Operation {
+	t.Helper()
+	deadline := time.Now().Add(3 * time.Second)
+	for time.Now().Before(deadline) {
+		operation, err := service.Operation(id)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if operation.Status != "running" {
+			return operation
+		}
+		time.Sleep(time.Millisecond)
+	}
+	t.Fatal("node settings apply did not complete")
+	return Operation{}
+}
+
 type fakeProvider struct{ applyErr error }
+
+type recordingProvider struct{ applied []Settings }
+
+func (provider *recordingProvider) ListModels(context.Context, string, int) (ModelPage, error) {
+	return ModelPage{}, nil
+}
+func (provider *recordingProvider) CheckMCP(context.Context, MCPConfig) (MCPCheck, error) {
+	return MCPCheck{}, nil
+}
+func (provider *recordingProvider) ApplySettings(_ context.Context, settings Settings, _ []MCPConfig) error {
+	provider.applied = append(provider.applied, settings)
+	return nil
+}
 
 func (provider fakeProvider) ListModels(context.Context, string, int) (ModelPage, error) {
 	return ModelPage{Models: []Model{{ID: "m", Model: "m"}}, Fresh: true, ProcessGeneration: 2}, nil
@@ -105,6 +140,7 @@ func TestApplyReceiptIsDurableIdempotentAndUnsupported(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	service.SetLifecycle(immediateLifecycle{})
 	secret := "token"
 	if _, err := service.Update(draftInput(0, "replace", &secret)); err != nil {
 		t.Fatal(err)
@@ -114,7 +150,8 @@ func TestApplyReceiptIsDurableIdempotentAndUnsupported(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if first.Status != "failed" || first.ReasonCode != "native_restart_unsupported" || service.Snapshot().Applied != nil {
+	first = awaitOperation(t, service, first.OperationID)
+	if first.Status != "failed" || first.ReasonCode != "parameter_unsupported" || service.Snapshot().Applied != nil {
 		t.Fatalf("unexpected operation: %#v", first)
 	}
 	second, err := service.Apply(context.Background(), request)
@@ -133,6 +170,7 @@ func TestSuccessfulApplyPublishesAppliedRevision(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	service.SetLifecycle(immediateLifecycle{})
 	secret := "token"
 	if _, err := service.Update(draftInput(0, "replace", &secret)); err != nil {
 		t.Fatal(err)
@@ -141,6 +179,7 @@ func TestSuccessfulApplyPublishesAppliedRevision(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	operation = awaitOperation(t, service, operation.OperationID)
 	if operation.Status != "succeeded" || operation.PreviousRevision != 0 {
 		t.Fatalf("unexpected operation: %#v", operation)
 	}
@@ -150,12 +189,53 @@ func TestSuccessfulApplyPublishesAppliedRevision(t *testing.T) {
 	}
 }
 
+func TestRestartRestoresOnlyConfirmedSnapshotAndReplaysCommand(t *testing.T) {
+	directory := t.TempDir()
+	provider := &recordingProvider{}
+	service, err := Open(directory, "node", provider)
+	if err != nil {
+		t.Fatal(err)
+	}
+	service.SetLifecycle(immediateLifecycle{})
+	firstModel, secondModel := "confirmed", "draft-only"
+	if _, err := service.Update(SettingsInput{ExpectedRevision: 0, Draft: DraftInput{Inference: Inference{ModelID: &firstModel}}}); err != nil {
+		t.Fatal(err)
+	}
+	request := ApplyRequest{CommandID: "stable-command", ExpectedRevision: 1, TargetRevision: 1}
+	first, err := service.Apply(context.Background(), request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if completed := awaitOperation(t, service, first.OperationID); completed.Status != "succeeded" {
+		t.Fatalf("apply: %+v", completed)
+	}
+	if _, err := service.Update(SettingsInput{ExpectedRevision: 1, Draft: DraftInput{Inference: Inference{ModelID: &secondModel}}}); err != nil {
+		t.Fatal(err)
+	}
+	restarted := &recordingProvider{}
+	reopened, err := Open(directory, "node", restarted)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := reopened.RestoreApplied(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if len(restarted.applied) != 1 || restarted.applied[0].Inference.ModelID == nil || *restarted.applied[0].Inference.ModelID != firstModel {
+		t.Fatalf("draft activated on restart: %+v", restarted.applied)
+	}
+	replay, err := reopened.Apply(context.Background(), request)
+	if err != nil || replay.OperationID != first.OperationID || len(restarted.applied) != 1 {
+		t.Fatalf("command replay caused apply: %+v %v", replay, err)
+	}
+}
+
 func TestOpenRecoversRunningOperation(t *testing.T) {
 	directory := t.TempDir()
 	service, err := Open(directory, "node", fakeProvider{applyErr: ErrUnsupported})
 	if err != nil {
 		t.Fatal(err)
 	}
+	service.SetLifecycle(immediateLifecycle{})
 	secret := "token"
 	if _, err := service.Update(draftInput(0, "replace", &secret)); err != nil {
 		t.Fatal(err)
@@ -164,6 +244,7 @@ func TestOpenRecoversRunningOperation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	awaitOperation(t, service, operation.OperationID)
 	path := filepath.Join(directory, "node-settings-v1.json")
 	raw, err := os.ReadFile(path)
 	if err != nil {

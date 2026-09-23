@@ -341,21 +341,29 @@ func serve(ctx context.Context, path string, diagnostics diagnosticlog.Sink) err
 		return err
 	}
 	defer adapter.Close()
+	settings, err := nodesettings.Open(cfg.DataDir, cfg.NodeID, adapter)
+	if err != nil {
+		return err
+	}
+	// Only the confirmed snapshot may influence a new process after a container
+	// restart. Draft revisions remain inert until a managed apply succeeds.
+	restoreErr := settings.RestoreApplied(ctx)
+	if restoreErr != nil {
+		diagnostics.Emit(diagnosticlog.LevelError, diagnosticlog.EventProviderExited, diagnosticlog.Fields{NodeID: cfg.NodeID, Outcome: "settings_restore_failed"})
+	}
 	authority, err := runtime.Open(ctx, runtime.Config{
 		DataDir: cfg.DataDir, NodeID: cfg.NodeID, OwnerID: cfg.OwnerID,
 		RegistryVersion: cfg.RegistryVersion, Adapter: adapter, Policies: policies, Artifacts: artifacts,
 		ProviderAuth:             adapter,
 		Logger:                   diagnostics,
 		ManualDispatchForTesting: cfg.ManualDispatchForTesting,
+		SettingsNotReady:         restoreErr != nil,
 	})
 	if err != nil {
 		return err
 	}
 	defer authority.Close()
-	settings, err := nodesettings.Open(cfg.DataDir, cfg.NodeID, adapter)
-	if err != nil {
-		return err
-	}
+	settings.SetLifecycle(authority)
 	handler, err := harnessserver.New(harnessserver.Config{NodeID: cfg.NodeID, Logger: diagnostics, NodeSettings: settings}, authority)
 	if err != nil {
 		return err

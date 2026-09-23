@@ -204,7 +204,7 @@ func (adapter *Adapter) handleNotification(notification rpcNotification) {
 					native.observeExecution()
 				}
 			}
-			adapter.finish(native, params.Turn.Status, unsupportedModelFailure(params.Turn.Error, adapter.config.Model))
+			adapter.finish(native, params.Turn.Status, unsupportedModelFailure(params.Turn.Error, adapter.currentSettings().Model))
 		}
 	case "serverRequest/resolved":
 		var params nativeRequestResolved
@@ -226,7 +226,7 @@ func (adapter *Adapter) handleNotification(notification rpcNotification) {
 				native.mu.Lock()
 				native.retryObserved = true
 				native.mu.Unlock()
-			} else if unsupportedModelFailure(&params.Error, adapter.config.Model) == nil {
+			} else if unsupportedModelFailure(&params.Error, adapter.currentSettings().Model) == nil {
 				adapter.finish(native, "failed", nil)
 			}
 			// A recognized rejection still needs turn/completed with matching
@@ -1317,13 +1317,18 @@ func unsupportedModelFailure(providerError *nativeTurnError, model string) *harn
 func (adapter *Adapter) handleExit() {
 	adapter.mu.Lock()
 	closed := adapter.closed
+	session := adapter.session
 	adapter.mu.Unlock()
 	level, outcome := diagnosticlog.LevelError, "unexpected"
 	if closed {
 		level, outcome = diagnosticlog.LevelInfo, "stopped"
 	}
+	var suppressed uint64
+	if session != nil {
+		suppressed = session.suppressedStderrBytes()
+	}
 	adapter.config.Logger.Emit(level, diagnosticlog.EventProviderExited, diagnosticlog.Fields{
-		NodeID: adapter.config.NodeID, Outcome: outcome, Count: adapter.session.suppressedStderrBytes(),
+		NodeID: adapter.config.NodeID, Outcome: outcome, Count: suppressed,
 	})
 	adapter.failActive("provider_state")
 }

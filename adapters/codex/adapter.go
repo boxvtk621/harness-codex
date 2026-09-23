@@ -165,10 +165,12 @@ type pendingInput struct {
 
 // Adapter owns all native thread, turn, item and request identifiers.
 type Adapter struct {
-	config    Config
-	artifacts node.ArtifactSink
-	store     *mappingStore
-	session   *nativeSession
+	config          Config
+	baseEnvironment []string
+	settings        activeSettings // protected by mu; config remains immutable after New
+	artifacts       node.ArtifactSink
+	store           *mappingStore
+	session         *nativeSession
 
 	dispatchMu    sync.Mutex
 	mu            sync.Mutex
@@ -186,6 +188,14 @@ type Adapter struct {
 	auth            providerAuthState
 	authBusy        bool
 	authCompletions map[string]accountLoginCompleted
+}
+
+type activeSettings struct {
+	Model       string
+	Effort      string
+	Speed       *string
+	MCPServers  []nodesettings.MCPConfig
+	Environment []string
 }
 
 var _ harnessadapter.Adapter = (*Adapter)(nil)
@@ -224,7 +234,7 @@ func New(config Config, artifacts node.ArtifactSink) (*Adapter, error) {
 		return nil, err
 	}
 	adapter := &Adapter{
-		config: config, artifacts: artifacts, store: store,
+		config: config, baseEnvironment: append([]string(nil), config.Environment...), settings: activeSettings{Model: config.Model, Effort: config.Effort, Environment: append([]string(nil), config.Environment...)}, artifacts: artifacts, store: store,
 		attempts: make(map[string]*nativeAttempt), byThread: make(map[string]*nativeAttempt),
 		byTurn: make(map[string]*nativeAttempt), inputs: make(map[string]*pendingInput), inputByRPC: make(map[string]string),
 		approvals: make(map[string]*pendingApproval), approvalByRPC: make(map[string]string),
@@ -239,12 +249,14 @@ func New(config Config, artifacts node.ArtifactSink) (*Adapter, error) {
 		WorkingDir: config.WorkingDir, MaxFrameBytes: config.MaxFrameBytes,
 	}, store, sessionHandlers{
 		Notification: adapter.handleNotification, Request: adapter.handleRequest, Exit: adapter.handleExit,
-		Ready: func(session *nativeSession) { adapter.session = session },
+		Ready: func(session *nativeSession) { adapter.mu.Lock(); adapter.session = session; adapter.mu.Unlock() },
 	})
 	if err != nil {
 		return nil, err
 	}
+	adapter.mu.Lock()
 	adapter.session = session
+	adapter.mu.Unlock()
 	adapter.config.Logger.Emit(diagnosticlog.LevelInfo, diagnosticlog.EventProviderReady, diagnosticlog.Fields{
 		NodeID: config.NodeID, ProcessGeneration: session.ProcessGeneration(),
 	})
@@ -339,21 +351,228 @@ func (adapter *Adapter) ListModels(ctx context.Context, cursor string, limit int
 	return page, nil
 }
 
-func (adapter *Adapter) CheckMCP(_ context.Context, server nodesettings.MCPConfig) (nodesettings.MCPCheck, error) {
+func (adapter *Adapter) CheckMCP(ctx context.Context, server nodesettings.MCPConfig) (nodesettings.MCPCheck, error) {
 	adapter.mu.Lock()
 	closed, session := adapter.closed, adapter.session
+	currentSettings := adapter.settings
+	configured := false
+	for _, current := range currentSettings.MCPServers {
+		if current.ID == server.ID && current.Enabled == server.Enabled && current.URL == server.URL && current.TimeoutMS == server.TimeoutMS && current.Auth.Kind == server.Auth.Kind && current.BearerToken == server.BearerToken {
+			configured = true
+			break
+		}
+	}
 	adapter.mu.Unlock()
 	if closed || session == nil {
 		return nodesettings.MCPCheck{}, errors.New("codex app-server is unavailable")
 	}
-	// mcpServerStatus/list is thread-scoped. Until the common managed process
-	// lifecycle can materialize the draft into native config, claiming a check
-	// here would test a different configuration.
-	return nodesettings.MCPCheck{MCPID: server.ID, Status: "unavailable", ErrorCode: "native_restart_unsupported", ProcessGeneration: session.ProcessGeneration()}, nil
+	result := nodesettings.MCPCheck{MCPID: server.ID, Status: "unavailable", ErrorCode: "draft_requires_apply", ProcessGeneration: session.ProcessGeneration()}
+	if !configured {
+		return result, nil
+	}
+	if !server.Enabled {
+		result.ErrorCode = "mcp_disabled"
+		return result, nil
+	}
+	operationCtx, cancel := adapter.operationContext(ctx)
+	defer cancel()
+	options := adapter.threadOptionsWithSettings(harnessadapter.PolicySnapshot{Content: []byte("managed node settings verification")}, adapter.config.WorkingDir, false, currentSettings)
+	var started nativeThreadResponse
+	if err := session.Call(operationCtx, "thread/start", options, &started); err != nil || !boundedNativeID(started.Thread.ID) {
+		result.ErrorCode = "mcp_runtime_unavailable"
+		return result, nil
+	}
+	var response struct {
+		Data []struct {
+			Name          string                     `json:"name"`
+			RuntimeStatus *string                    `json:"runtimeStatus"`
+			Tools         map[string]json.RawMessage `json:"tools"`
+			ToolsError    *string                    `json:"toolsError"`
+		} `json:"data"`
+	}
+	if err := session.Call(operationCtx, "mcpServerStatus/list", map[string]any{"threadId": started.Thread.ID, "limit": 100, "detail": "toolsAndAuthOnly"}, &response); err != nil {
+		result.ErrorCode = "mcp_status_unavailable"
+		return result, nil
+	}
+	for _, entry := range response.Data {
+		if entry.Name != server.ID {
+			continue
+		}
+		if entry.RuntimeStatus != nil && *entry.RuntimeStatus == "connected" && entry.Tools != nil && entry.ToolsError == nil {
+			result.Status, result.ErrorCode = "available", ""
+		} else if entry.RuntimeStatus != nil && *entry.RuntimeStatus == "authenticationRequired" {
+			result.ErrorCode = "mcp_auth_required"
+		} else if entry.RuntimeStatus != nil && *entry.RuntimeStatus == "failed" {
+			result.ErrorCode = "mcp_connection_failed"
+		} else {
+			result.ErrorCode = "mcp_tools_unverified"
+		}
+		return result, nil
+	}
+	result.ErrorCode = "mcp_inventory_missing"
+	return result, nil
 }
 
-func (adapter *Adapter) ApplySettings(context.Context, nodesettings.Settings, []nodesettings.MCPConfig) error {
-	return nodesettings.ErrUnsupported
+func (adapter *Adapter) PreflightSettings(ctx context.Context, settings nodesettings.Settings, servers []nodesettings.MCPConfig) error {
+	_ = servers
+	modelID := adapter.config.Model
+	if settings.Inference.ModelID != nil {
+		modelID = *settings.Inference.ModelID
+	}
+	var cursor string
+	seen := map[string]bool{}
+	for pageNo := 0; pageNo < maximumFeaturePages; pageNo++ {
+		page, err := adapter.ListModels(ctx, cursor, 100)
+		if err != nil {
+			return err
+		}
+		for _, model := range page.Models {
+			if model.ID != modelID {
+				continue
+			}
+			if settings.Inference.ReasoningEffort != nil && !containsValue(model.SupportedReasoningEfforts, *settings.Inference.ReasoningEffort) {
+				return nodesettings.ErrUnsupported
+			}
+			if settings.Inference.SpeedMode != nil && !containsValue(model.ServiceTiers, *settings.Inference.SpeedMode) {
+				return nodesettings.ErrUnsupported
+			}
+			return nil
+		}
+		if page.NextCursor == nil {
+			return nodesettings.ErrUnsupported
+		}
+		cursor = *page.NextCursor
+		if seen[cursor] {
+			return errors.New("codex model catalog cursor repeats")
+		}
+		seen[cursor] = true
+	}
+	return errors.New("codex model catalog exceeds page limit")
+}
+
+func containsValue(values []string, target string) bool {
+	for _, value := range values {
+		if value == target {
+			return true
+		}
+	}
+	return false
+}
+
+func (adapter *Adapter) currentSettings() activeSettings {
+	adapter.mu.Lock()
+	defer adapter.mu.Unlock()
+	return adapter.settings
+}
+
+func (adapter *Adapter) ApplySettings(ctx context.Context, settings nodesettings.Settings, servers []nodesettings.MCPConfig) error {
+	adapter.mu.Lock()
+	if adapter.closed || adapter.session == nil {
+		adapter.mu.Unlock()
+		return errors.New("codex app-server is unavailable")
+	}
+	previous := adapter.settings
+	old := adapter.session
+	adapter.mu.Unlock()
+	candidate := previous
+	candidate.Model = adapter.config.Model
+	candidate.Effort = adapter.config.Effort
+	if settings.Inference.ModelID != nil {
+		candidate.Model = *settings.Inference.ModelID
+	}
+	if settings.Inference.ReasoningEffort != nil {
+		candidate.Effort = *settings.Inference.ReasoningEffort
+	}
+	candidate.Speed = settings.Inference.SpeedMode
+	candidate.MCPServers = append([]nodesettings.MCPConfig(nil), servers...)
+	candidate.Environment = adapter.settingsEnvironment(candidate.MCPServers)
+	if err := old.Close(); err != nil {
+		return err
+	}
+	_ = old.Wait() // stop intentionally kills the old child
+	adapter.mu.Lock()
+	adapter.session = nil
+	adapter.settings = candidate
+	adapter.mu.Unlock()
+	if err := adapter.restartSession(ctx, candidate.Environment); err == nil {
+		if err = adapter.verifyAppliedSettings(ctx, candidate); err == nil {
+			return nil
+		}
+		adapter.mu.Lock()
+		failed := adapter.session
+		adapter.mu.Unlock()
+		if failed != nil {
+			_ = failed.Close()
+			_ = failed.Wait()
+		}
+	}
+	adapter.mu.Lock()
+	adapter.session = nil
+	adapter.settings = previous
+	adapter.mu.Unlock()
+	rollbackCtx, cancel := context.WithTimeout(context.Background(), adapter.config.OperationTimeout)
+	defer cancel()
+	if rollbackErr := adapter.restartSession(rollbackCtx, previous.Environment); rollbackErr != nil {
+		return fmt.Errorf("%w: %v", nodesettings.ErrRollbackFailed, rollbackErr)
+	}
+	return errors.New("codex settings start or verification failed; prior process restored")
+}
+
+func (adapter *Adapter) settingsEnvironment(servers []nodesettings.MCPConfig) []string {
+	environment := append([]string(nil), adapter.baseEnvironment...)
+	for _, server := range servers {
+		if server.Enabled && server.Auth.Kind == "bearer" {
+			environment = append(environment, mcpTokenVariable(server.ID)+"="+server.BearerToken)
+		}
+	}
+	return environment
+}
+
+func mcpTokenVariable(id string) string {
+	digest := sha256.Sum256([]byte(id))
+	return "HARNESS_CODEX_MCP_TOKEN_" + strings.ToUpper(hex.EncodeToString(digest[:8]))
+}
+
+func (adapter *Adapter) restartSession(ctx context.Context, environment []string) error {
+	config := adapter.config
+	session, err := startNativeSession(ctx, bridgeConfig{
+		Executable: config.Executable, Arguments: append([]string(nil), config.Arguments...),
+		VersionArguments: append([]string(nil), config.VersionArguments...), Environment: append([]string(nil), environment...),
+		WorkingDir: config.WorkingDir, MaxFrameBytes: config.MaxFrameBytes,
+	}, adapter.store, sessionHandlers{
+		Notification: adapter.handleNotification, Request: adapter.handleRequest, Exit: adapter.handleExit,
+		Ready: func(session *nativeSession) { adapter.mu.Lock(); adapter.session = session; adapter.mu.Unlock() },
+	})
+	if err != nil {
+		return err
+	}
+	adapter.mu.Lock()
+	adapter.session = session
+	adapter.mu.Unlock()
+	return nil
+}
+
+func (adapter *Adapter) verifyAppliedSettings(ctx context.Context, config activeSettings) error {
+	model := config.Model
+	effort := config.Effort
+	if err := adapter.PreflightSettings(ctx, nodesettings.Settings{Inference: nodesettings.Inference{ModelID: &model, ReasoningEffort: &effort, SpeedMode: config.Speed}}, config.MCPServers); err != nil {
+		return err
+	}
+	adapter.mu.Lock()
+	session := adapter.session
+	adapter.mu.Unlock()
+	if session == nil {
+		return errors.New("codex app-server is unavailable")
+	}
+	options := adapter.threadOptions(harnessadapter.PolicySnapshot{Content: []byte("managed node settings verification")}, adapter.config.WorkingDir, false)
+	var response nativeThreadResponse
+	if err := session.Call(ctx, "thread/start", options, &response); err != nil {
+		return fmt.Errorf("verify codex settings thread: %w", err)
+	}
+	if !boundedNativeID(response.Thread.ID) {
+		return errors.New("codex settings thread response is invalid")
+	}
+	return adapter.verifyMCPInventory(ctx, response.Thread.ID)
 }
 
 func validCatalogModel(model nodesettings.Model) bool {
@@ -524,7 +743,7 @@ func (adapter *Adapter) dispatch(ctx context.Context, kind string, reference har
 		native.runtime.failUnknown("policy_unconfirmed")
 		return nil, err
 	}
-	if err := adapter.verifyNoMCPServers(operationCtx, threadID); err != nil {
+	if err := adapter.verifyMCPInventory(operationCtx, threadID); err != nil {
 		native.runtime.failUnknown("policy_unconfirmed")
 		return nil, err
 	}
@@ -533,11 +752,12 @@ func (adapter *Adapter) dispatch(ctx context.Context, kind string, reference har
 		return nil, err
 	}
 	var turnResponse nativeTurnResponse
+	active := adapter.currentSettings()
 	if err := adapter.session.Call(operationCtx, "turn/start", nativeTurnParams{
 		ThreadID: threadID, Input: []nativeUserInput{{Type: "text", Text: prompt}}, ClientUserMessageID: boundary.MessageID,
 		CWD: workspace, ApprovalPolicy: nativeApprovalPolicy(), ApprovalsReviewer: nativeApprovalsReviewer(),
 		SandboxPolicy: readOnlySandboxPolicy(),
-		Model:         adapter.config.Model, Effort: adapter.config.Effort,
+		Model:         active.Model, Effort: active.Effort, ServiceTier: active.Speed,
 	}, &turnResponse); err != nil {
 		native.runtime.failUnknown("dispatch_uncertain")
 		return nil, err
@@ -624,7 +844,17 @@ func (adapter *Adapter) verifyThreadFeatures(ctx context.Context, threadID strin
 	return errors.New("codex feature policy exceeds page limit")
 }
 
-func (adapter *Adapter) verifyNoMCPServers(ctx context.Context, threadID string) error {
+func (adapter *Adapter) verifyMCPInventory(ctx context.Context, threadID string) error {
+	wanted := map[string]bool{}
+	adapter.mu.Lock()
+	configured := append([]nodesettings.MCPConfig(nil), adapter.settings.MCPServers...)
+	adapter.mu.Unlock()
+	for _, server := range configured {
+		if server.Enabled {
+			wanted[server.ID] = true
+		}
+	}
+	observed := map[string]bool{}
 	seenCursors := make(map[string]bool)
 	var cursor string
 	for page := 0; page < maximumFeaturePages; page++ {
@@ -636,10 +866,22 @@ func (adapter *Adapter) verifyNoMCPServers(ctx context.Context, threadID string)
 		if err := adapter.session.Call(ctx, "mcpServerStatus/list", params, &response); err != nil {
 			return fmt.Errorf("verify codex MCP isolation: %w", err)
 		}
-		if response.Data == nil || len(response.Data) != 0 {
-			return errors.New("codex MCP isolation is not enforced")
+		if response.Data == nil {
+			return errors.New("codex MCP inventory is invalid")
+		}
+		for _, item := range response.Data {
+			var entry struct {
+				Name string `json:"name"`
+			}
+			if json.Unmarshal(item, &entry) != nil || !wanted[entry.Name] || observed[entry.Name] {
+				return errors.New("codex MCP inventory differs from applied settings")
+			}
+			observed[entry.Name] = true
 		}
 		if response.NextCursor == nil {
+			if len(observed) != len(wanted) {
+				return errors.New("codex MCP inventory is incomplete")
+			}
 			return nil
 		}
 		cursor = *response.NextCursor
@@ -879,20 +1121,25 @@ func (adapter *Adapter) Close() error {
 		return nil
 	}
 	adapter.closed = true
+	session := adapter.session
 	for _, native := range adapter.attempts {
 		native.cancelTools()
 	}
 	adapter.mu.Unlock()
-	if err := adapter.session.Close(); err != nil {
+	if session == nil {
+		return nil
+	}
+	if err := session.Close(); err != nil {
 		return err
 	}
-	_ = adapter.session.Wait()
+	_ = session.Wait()
 	return nil
 }
 
 type nativeThreadOptions struct {
 	ThreadID              string                  `json:"threadId,omitempty"`
 	Model                 string                  `json:"model"`
+	ServiceTier           *string                 `json:"serviceTier,omitempty"`
 	CWD                   string                  `json:"cwd"`
 	ApprovalPolicy        string                  `json:"approvalPolicy"`
 	ApprovalsReviewer     string                  `json:"approvalsReviewer"`
@@ -956,6 +1203,7 @@ type nativeTurnParams struct {
 	SandboxPolicy       nativeSandboxPolicy `json:"sandboxPolicy"`
 	Model               string              `json:"model"`
 	Effort              string              `json:"effort"`
+	ServiceTier         *string             `json:"serviceTier,omitempty"`
 }
 
 type nativeTurnResponse struct {
@@ -966,13 +1214,32 @@ type nativeTurnResponse struct {
 }
 
 func (adapter *Adapter) threadOptions(policy harnessadapter.PolicySnapshot, workspace string, includeDynamicTools bool) nativeThreadOptions {
+	adapter.mu.Lock()
+	settings := adapter.settings
+	adapter.mu.Unlock()
+	return adapter.threadOptionsWithSettings(policy, workspace, includeDynamicTools, settings)
+}
+
+func (adapter *Adapter) threadOptionsWithSettings(policy harnessadapter.PolicySnapshot, workspace string, includeDynamicTools bool, settings activeSettings) nativeThreadOptions {
+	mcpServers := map[string]any{}
+	for _, server := range settings.MCPServers {
+		if !server.Enabled {
+			continue
+		}
+		entry := map[string]any{"url": server.URL, "enabled": true,
+			"startup_timeout_sec": float64(server.TimeoutMS) / 1000, "tool_timeout_sec": float64(server.TimeoutMS) / 1000}
+		if server.Auth.Kind == "bearer" {
+			entry["bearer_token_env_var"] = mcpTokenVariable(server.ID)
+		}
+		mcpServers[server.ID] = entry
+	}
 	options := nativeThreadOptions{
-		Model: adapter.config.Model, CWD: workspace, ApprovalPolicy: nativeApprovalPolicy(),
+		Model: settings.Model, ServiceTier: settings.Speed, CWD: workspace, ApprovalPolicy: nativeApprovalPolicy(),
 		ApprovalsReviewer: nativeApprovalsReviewer(), Sandbox: "read-only",
 		DeveloperInstructions: string(policy.Content),
 		Config: map[string]any{
-			"features": nativeFeatureOverrides(policy), "mcp_servers": map[string]any{},
-			"model_reasoning_effort": adapter.config.Effort, "web_search": "disabled",
+			"features": nativeFeatureOverrides(policy), "mcp_servers": mcpServers,
+			"model_reasoning_effort": settings.Effort, "web_search": "disabled",
 		},
 	}
 	if includeDynamicTools && policy.ApprovalMode == harnessadapter.ApprovalModeExplicitOnce {

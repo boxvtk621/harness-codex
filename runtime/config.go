@@ -73,6 +73,7 @@ type Config struct {
 	// ManualDispatchForTesting keeps deterministic fixture setup under direct
 	// DispatchNext control. Production configuration must leave it false.
 	ManualDispatchForTesting bool
+	SettingsNotReady         bool
 }
 
 func (config *Config) defaults() error {

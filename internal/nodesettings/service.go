@@ -22,22 +22,55 @@ import (
 var identifier = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$`)
 
 var (
-	ErrInvalid       = errors.New("node settings input is invalid")
-	ErrStale         = errors.New("node settings revision is stale")
-	ErrNotFound      = errors.New("node settings object was not found")
-	ErrIDConflict    = errors.New("node settings command id conflicts")
-	ErrUnsupported   = errors.New("node settings apply is unsupported")
-	ErrIndeterminate = errors.New("node settings persistence is indeterminate")
+	ErrInvalid        = errors.New("node settings input is invalid")
+	ErrStale          = errors.New("node settings revision is stale")
+	ErrNotFound       = errors.New("node settings object was not found")
+	ErrIDConflict     = errors.New("node settings command id conflicts")
+	ErrUnsupported    = errors.New("node settings apply is unsupported")
+	ErrIndeterminate  = errors.New("node settings persistence is indeterminate")
+	ErrRollbackFailed = errors.New("node settings rollback failed")
 )
 
 type Service struct {
-	mu            sync.Mutex
-	applyMu       sync.Mutex
-	path          string
-	state         persistedState
-	provider      Provider
+	mu        sync.Mutex
+	applyMu   sync.Mutex
+	path      string
+	state     persistedState
+	provider  Provider
+	lifecycle interface {
+		BeginSettingsChange(context.Context) (func(), error)
+	}
 	now           func() time.Time
 	syncDirectory func(string) error
+}
+
+func (service *Service) markReady(ready bool) {
+	if lifecycle, ok := service.lifecycle.(interface{ SetSettingsReady(bool) }); ok {
+		lifecycle.SetSettingsReady(ready)
+	}
+}
+
+// SetLifecycle connects settings apply to the node's dispatch and auth fence.
+// It must be called before the HTTP server starts accepting requests.
+func (service *Service) SetLifecycle(lifecycle interface {
+	BeginSettingsChange(context.Context) (func(), error)
+}) {
+	service.mu.Lock()
+	defer service.mu.Unlock()
+	service.lifecycle = lifecycle
+}
+
+// RestoreApplied returns only the last confirmed configuration. A draft is
+// never used during process startup or crash recovery.
+func (service *Service) RestoreApplied(ctx context.Context) error {
+	service.mu.Lock()
+	applied := service.state.Applied
+	revision := service.state.AppliedRevision
+	service.mu.Unlock()
+	if revision == 0 {
+		return nil
+	}
+	return service.provider.ApplySettings(ctx, publicSettings(applied), providerMCPs(applied))
 }
 
 func Open(dataDir, nodeID string, provider Provider) (*Service, error) {
@@ -137,6 +170,16 @@ func (service *Service) Apply(ctx context.Context, input ApplyRequest) (Operatio
 		service.mu.Unlock()
 		return Operation{}, ErrStale
 	}
+	for _, existing := range service.state.Operations {
+		if existing.Status == "running" {
+			service.mu.Unlock()
+			return Operation{}, ErrStale
+		}
+	}
+	if service.lifecycle == nil {
+		service.mu.Unlock()
+		return Operation{}, ErrUnsupported
+	}
 	operationID, err := randomID()
 	if err != nil {
 		service.mu.Unlock()
@@ -163,29 +206,94 @@ func (service *Service) Apply(ctx context.Context, input ApplyRequest) (Operatio
 	}
 	draft := service.state.Draft
 	service.mu.Unlock()
+	go service.runApply(operationID, input.TargetRevision, draft)
+	return operation, nil
+}
 
-	applyErr := service.provider.ApplySettings(ctx, publicSettings(draft), providerMCPs(draft))
+func (service *Service) runApply(operationID string, revision int64, draft persistedSettings) {
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
+	defer cancel()
 	service.mu.Lock()
-	defer service.mu.Unlock()
-	operation = service.state.Operations[operationID]
-	operation.UpdatedAt = service.now().UTC().Format(time.RFC3339Nano)
-	if applyErr != nil {
-		operation.Status, operation.Phase = "failed", "preflight"
-		if errors.Is(applyErr, ErrUnsupported) {
-			operation.ReasonCode = "native_restart_unsupported"
-		} else {
-			operation.ReasonCode = "provider_unavailable"
+	previous := service.state.Applied
+	previousRevision := service.state.AppliedRevision
+	service.mu.Unlock()
+	var applyErr error
+	if preflight, ok := service.provider.(interface {
+		PreflightSettings(context.Context, Settings, []MCPConfig) error
+	}); ok {
+		applyErr = preflight.PreflightSettings(ctx, publicSettings(draft), providerMCPs(draft))
+	}
+	if applyErr == nil {
+		applyErr = service.phase(operationID, "waiting")
+	}
+	if applyErr == nil {
+		var release func()
+		release, applyErr = service.lifecycle.BeginSettingsChange(ctx)
+		if applyErr == nil {
+			defer release()
+			applyErr = service.phase(operationID, "stopping")
+			if applyErr == nil {
+				applyErr = service.provider.ApplySettings(ctx, publicSettings(draft), providerMCPs(draft))
+			}
 		}
-	} else {
+	}
+	if applyErr == nil {
+		service.mu.Lock()
+		operation := service.state.Operations[operationID]
 		operation.Status, operation.Phase = "succeeded", "verified"
+		operation.UpdatedAt = service.now().UTC().Format(time.RFC3339Nano)
+		service.state.Operations[operationID] = operation
 		service.state.Applied = draft
-		service.state.AppliedRevision = input.TargetRevision
+		service.state.AppliedRevision = revision
+		persistErr := service.persistLocked()
+		if persistErr == nil {
+			service.mu.Unlock()
+			service.markReady(true)
+			return
+		}
+		service.state.Applied = previous
+		service.state.AppliedRevision = previousRevision
+		service.mu.Unlock()
+		rollbackCtx, rollbackCancel := context.WithTimeout(context.Background(), 30*time.Second)
+		rollbackErr := service.provider.ApplySettings(rollbackCtx, publicSettings(previous), providerMCPs(previous))
+		rollbackCancel()
+		if rollbackErr != nil {
+			applyErr = ErrRollbackFailed
+		} else {
+			applyErr = persistErr
+		}
+	}
+	service.mu.Lock()
+	operation := service.state.Operations[operationID]
+	operation.UpdatedAt = service.now().UTC().Format(time.RFC3339Nano)
+	operation.Status = "failed"
+	if errors.Is(applyErr, ErrRollbackFailed) {
+		operation.ReasonCode = "rollback_failed"
+	} else if errors.Is(applyErr, ErrUnsupported) {
+		operation.ReasonCode = "parameter_unsupported"
+	} else if errors.Is(applyErr, context.DeadlineExceeded) {
+		operation.ReasonCode = "active_attempt_timeout"
+	} else if errors.Is(applyErr, ErrIndeterminate) {
+		operation.ReasonCode = "persistence_indeterminate"
+	} else {
+		operation.ReasonCode = "provider_unavailable"
 	}
 	service.state.Operations[operationID] = operation
-	if err := service.persistLocked(); err != nil {
-		return Operation{}, err
+	persistErr := service.persistLocked()
+	service.mu.Unlock()
+	if errors.Is(applyErr, ErrRollbackFailed) || persistErr != nil {
+		service.markReady(false)
 	}
-	return operation, nil
+}
+
+func (service *Service) phase(operationID, phase string) error {
+	service.mu.Lock()
+	defer service.mu.Unlock()
+	operation := service.state.Operations[operationID]
+	operation.Phase = phase
+	operation.UpdatedAt = service.now().UTC().Format(time.RFC3339Nano)
+	service.state.Operations[operationID] = operation
+	return service.persistLocked()
 }
 
 func (service *Service) Operation(operationID string) (Operation, error) {
@@ -221,9 +329,7 @@ func (service *Service) Models(ctx context.Context, cursor string, limit int) (M
 			model.DisplayName = model.ID
 		}
 		model.ReasoningEfforts = modes(model.SupportedReasoningEfforts, model.DefaultReasoningEffort)
-		speeds := append([]string{}, model.ServiceTiers...)
-		speeds = append(speeds, model.AdditionalSpeedTiers...)
-		model.SpeedModes = modes(speeds, model.DefaultServiceTier)
+		model.SpeedModes = modes(model.ServiceTiers, model.DefaultServiceTier)
 	}
 	return page, nil
 }
@@ -321,7 +427,7 @@ func mergeSettings(current persistedSettings, input SettingsInput) (persistedSet
 }
 
 func (service *Service) snapshotLocked() Snapshot {
-	result := Snapshot{SchemaID: Contract, NodeID: service.state.NodeID, DraftRevision: service.state.DraftRevision, AppliedRevision: service.state.AppliedRevision, Draft: publicSettings(service.state.Draft), Capabilities: map[string]string{"provider": "codex", "modelCatalog": "runtime", "mcpCheck": "runtime", "nativeRestart": "unsupported"}}
+	result := Snapshot{SchemaID: Contract, NodeID: service.state.NodeID, DraftRevision: service.state.DraftRevision, AppliedRevision: service.state.AppliedRevision, Draft: publicSettings(service.state.Draft), Capabilities: map[string]string{"provider": "codex", "modelCatalog": "runtime", "modelDefault": "supported", "mcpCheck": "runtime", "mcpTimeout": "supported", "nativeRestart": "managed"}}
 	if service.state.AppliedRevision > 0 {
 		applied := publicSettings(service.state.Applied)
 		result.Applied = &applied

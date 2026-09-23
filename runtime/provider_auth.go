@@ -31,6 +31,9 @@ func (node *Node) ProviderAuthStart(ctx context.Context, nodeID, commandID, meth
 	}
 	node.startGate.Lock()
 	defer node.startGate.Unlock()
+	if node.settingsApplyBusy() {
+		return providerAuthError(http.StatusConflict, "busy")
+	}
 	if node.providerAuthWorkBusy(ctx) {
 		return providerAuthError(http.StatusConflict, "busy")
 	}
@@ -60,6 +63,9 @@ func (node *Node) ProviderAuthLogout(ctx context.Context, nodeID, commandID stri
 	}
 	node.startGate.Lock()
 	defer node.startGate.Unlock()
+	if node.settingsApplyBusy() {
+		return providerAuthError(http.StatusConflict, "busy")
+	}
 	if node.providerAuthWorkBusy(ctx) {
 		return providerAuthError(http.StatusConflict, "busy")
 	}

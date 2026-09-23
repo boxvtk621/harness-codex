@@ -62,6 +62,9 @@ func (node *Node) DispatchNext(ctx context.Context) (DispatchResult, error) {
 	}
 	node.mu.Lock()
 	defer node.mu.Unlock()
+	if node.settingsBarrier || node.settingsNotReady {
+		return DispatchResult{Outcome: "blocked"}, nil
+	}
 	tx, err := node.db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
 		return DispatchResult{}, err

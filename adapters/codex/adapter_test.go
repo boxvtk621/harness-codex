@@ -1722,6 +1722,7 @@ func runAdapterHelper() int {
 	activeExplicit := false
 	activeWorkspace := ""
 	activeFeatures := map[string]any{}
+	activeMCP := map[string]any{}
 	authenticated := os.Getenv("CODEX_AUTH_START_AUTHENTICATED") == "1"
 	pendingLoginID := ""
 	for scanner.Scan() {
@@ -1803,6 +1804,10 @@ func runAdapterHelper() int {
 		}
 		switch frame.Method {
 		case "initialize":
+			if os.Getenv("CODEX_SETTINGS_FAIL_FOR_MCP_B") == "1" && os.Getenv(mcpTokenVariable("B")) != "" {
+				_ = encoder.Encode(map[string]any{"id": frame.ID, "error": map[string]any{"code": -32000, "message": "fixture startup failure"}})
+				continue
+			}
 			var params initializeParams
 			if json.Unmarshal(frame.Params, &params) != nil || !params.Capabilities.ExperimentalAPI {
 				return 14
@@ -1861,6 +1866,15 @@ func runAdapterHelper() int {
 		case "account/logout":
 			authenticated = false
 			_ = encoder.Encode(map[string]any{"id": frame.ID, "result": map[string]any{}})
+		case "model/list":
+			models := []map[string]any{}
+			for _, id := range []string{"fixture-model", "fixture-entitled-model"} {
+				models = append(models, map[string]any{"id": id, "model": id,
+					"supportedReasoningEfforts": []map[string]string{{"reasoningEffort": "medium"}, {"reasoningEffort": "high"}},
+					"defaultReasoningEffort":    "medium", "serviceTiers": []map[string]string{{"id": "default"}, {"id": "priority"}},
+					"defaultServiceTier": "default"})
+			}
+			_ = encoder.Encode(map[string]any{"id": frame.ID, "result": map[string]any{"data": models, "nextCursor": nil}})
 		case "thread/start":
 			var params nativeThreadOptions
 			if json.Unmarshal(frame.Params, &params) != nil || !validHelperPolicy(params) || params.ThreadID != "" {
@@ -1869,6 +1883,7 @@ func runAdapterHelper() int {
 			activeExplicit = len(params.DynamicTools) > 0
 			activeWorkspace = params.CWD
 			activeFeatures, _ = params.Config["features"].(map[string]any)
+			activeMCP, _ = params.Config["mcp_servers"].(map[string]any)
 			threads++
 			activeThread = fmt.Sprintf("thread-%d", threads)
 			emitThreadResponse(encoder, frame.ID, activeThread, params.CWD)
@@ -1880,6 +1895,7 @@ func runAdapterHelper() int {
 			activeExplicit = params.DeveloperInstructions == "fixture tool policy"
 			activeWorkspace = params.CWD
 			activeFeatures, _ = params.Config["features"].(map[string]any)
+			activeMCP, _ = params.Config["mcp_servers"].(map[string]any)
 			activeThread = params.ThreadID
 			emitThreadResponse(encoder, frame.ID, activeThread, params.CWD)
 		case "experimentalFeature/list":
@@ -1909,6 +1925,9 @@ func runAdapterHelper() int {
 				return 13
 			}
 			servers := []map[string]any{}
+			for name := range activeMCP {
+				servers = append(servers, map[string]any{"name": name, "authStatus": "bearerToken", "runtimeStatus": "connected", "tools": map[string]any{"fixture": map[string]any{}}})
+			}
 			if os.Getenv("CODEX_MCP_ENABLED") == "1" {
 				servers = append(servers, map[string]any{"name": "unexpected"})
 			}
@@ -2025,13 +2044,23 @@ func runAdapterHelper() int {
 func validHelperPolicy(params nativeThreadOptions) bool {
 	features, ok := params.Config["features"].(map[string]any)
 	mcpServers, mcpOK := params.Config["mcp_servers"].(map[string]any)
-	if (params.Model != "fixture-model" && params.Model != "fixture-entitled-model") || params.CWD == "" || params.ApprovalsReviewer != "user" || !ok || len(features) != len(deniedNativeFeatures) || !mcpOK || len(mcpServers) != 0 {
+	if (params.Model != "fixture-model" && params.Model != "fixture-entitled-model") || params.CWD == "" || params.ApprovalsReviewer != "user" || !ok || len(features) != len(deniedNativeFeatures) || !mcpOK {
 		return false
 	}
 	explicit := params.DeveloperInstructions == "fixture tool policy"
 	deny := params.DeveloperInstructions == "fixture policy"
-	if params.ApprovalPolicy != "never" || params.Sandbox != "read-only" || (!explicit && !deny) {
+	verification := params.DeveloperInstructions == "managed node settings verification"
+	if params.ApprovalPolicy != "never" || params.Sandbox != "read-only" || (!explicit && !deny && !verification) {
 		return false
+	}
+	for _, value := range mcpServers {
+		entry, ok := value.(map[string]any)
+		if !ok || entry["url"] == "" {
+			return false
+		}
+		if variable, ok := entry["bearer_token_env_var"].(string); ok && os.Getenv(variable) == "" {
+			return false
+		}
 	}
 	if (params.ThreadID == "" && explicit && len(params.DynamicTools) != 1) || (params.ThreadID != "" && len(params.DynamicTools) != 0) || (deny && len(params.DynamicTools) != 0) {
 		return false

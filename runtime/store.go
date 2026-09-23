@@ -38,22 +38,24 @@ type Node struct {
 	// startGate is ordered before mu. It covers the last pre-provider dispatch
 	// check through Start/Resume completion so a committed hold cannot be crossed
 	// by a later native start.
-	startGate      sync.Mutex
-	fault          FaultInjector
-	runtime        RuntimeInfo
-	identity       harnessadapter.Identity
-	startedAt      string
-	bootID         string
-	heartbeatMu    sync.RWMutex
-	heartbeatAt    string
-	actions        chan struct{}
-	stop           context.CancelFunc
-	done           chan struct{}
-	workerStarted  bool
-	recoveryOnly   bool
-	streamMu       sync.Mutex
-	streamLease    *attemptStreamLease
-	deletedDialogs map[string]struct{}
+	startGate        sync.Mutex
+	settingsBarrier  bool
+	settingsNotReady bool
+	fault            FaultInjector
+	runtime          RuntimeInfo
+	identity         harnessadapter.Identity
+	startedAt        string
+	bootID           string
+	heartbeatMu      sync.RWMutex
+	heartbeatAt      string
+	actions          chan struct{}
+	stop             context.CancelFunc
+	done             chan struct{}
+	workerStarted    bool
+	recoveryOnly     bool
+	streamMu         sync.Mutex
+	streamLease      *attemptStreamLease
+	deletedDialogs   map[string]struct{}
 }
 
 type filesystemSpace struct{}
@@ -159,7 +161,7 @@ func open(ctx context.Context, config Config, recoveryOnly bool) (*Node, error) 
 	}
 	workerContext, stop := context.WithCancel(context.Background())
 	startedAt := timestamp(config.Clock())
-	node := &Node{config: config, db: db, lock: lock, identity: identity, startedAt: startedAt, bootID: bootID, heartbeatAt: startedAt, actions: make(chan struct{}, 1), stop: stop, done: make(chan struct{}), recoveryOnly: recoveryOnly}
+	node := &Node{config: config, db: db, lock: lock, identity: identity, startedAt: startedAt, bootID: bootID, heartbeatAt: startedAt, actions: make(chan struct{}, 1), stop: stop, done: make(chan struct{}), recoveryOnly: recoveryOnly, settingsNotReady: config.SettingsNotReady}
 	if recoveryOnly {
 		var version int
 		if err := db.QueryRowContext(ctx, "PRAGMA user_version").Scan(&version); err != nil || version != SchemaVersion {
