@@ -50,6 +50,7 @@ type Node struct {
 	stop           context.CancelFunc
 	done           chan struct{}
 	workerStarted  bool
+	recoveryOnly   bool
 	streamMu       sync.Mutex
 	streamLease    *attemptStreamLease
 	deletedDialogs map[string]struct{}
@@ -66,8 +67,22 @@ func (filesystemSpace) Measure(path string) (SpaceInfo, error) {
 }
 
 func Open(ctx context.Context, config Config) (*Node, error) {
+	return open(ctx, config, false)
+}
+
+// OpenForRecovery opens an existing, current-schema volume exclusively without
+// startup reconciliation, artifact mutation, or a dispatch worker.
+func OpenForRecovery(ctx context.Context, config Config) (*Node, error) {
+	return open(ctx, config, true)
+}
+
+func open(ctx context.Context, config Config, recoveryOnly bool) (*Node, error) {
 	if err := config.defaults(); err != nil {
 		return nil, err
+	}
+	_, offlineAdapter := config.Adapter.(interface{ RecoveryOnlyAdapter() })
+	if offlineAdapter != recoveryOnly {
+		return nil, errors.New("recovery-only adapter and runtime mode must match")
 	}
 	identity, err := config.Adapter.Identity(ctx)
 	if err != nil {
@@ -76,13 +91,23 @@ func Open(ctx context.Context, config Config) (*Node, error) {
 	if err := harnessadapter.ValidateIdentity(identity); err != nil {
 		return nil, fmt.Errorf("adapter identity: %w", err)
 	}
+	if recoveryOnly {
+		info, err := os.Lstat(config.DataDir)
+		if err != nil || !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
+			return nil, errors.New("recovery requires an existing data directory")
+		}
+	}
 	dataDir, err := secureDataDir(config.DataDir)
 	if err != nil {
 		return nil, err
 	}
 	config.DataDir = dataDir
 	lockPath := filepath.Join(dataDir, ".harness.lock")
-	lock, err := secureOpenFile(lockPath, os.O_CREATE|os.O_RDWR, 0o600)
+	lockFlags := os.O_CREATE | os.O_RDWR
+	if recoveryOnly {
+		lockFlags = os.O_RDWR
+	}
+	lock, err := secureOpenFile(lockPath, lockFlags, 0o600)
 	if err != nil {
 		return nil, fmt.Errorf("open volume lock: %w", err)
 	}
@@ -92,10 +117,22 @@ func Open(ctx context.Context, config Config) (*Node, error) {
 	}
 
 	dbPath := filepath.Join(dataDir, "harness.db")
+	if recoveryOnly {
+		if _, err := os.Lstat(dbPath); err != nil {
+			unlock(lock)
+			return nil, errors.New("recovery requires an existing database")
+		}
+	}
 	databaseCreated, err := prepareDatabaseFile(ctx, dbPath, config)
 	if err != nil {
 		unlock(lock)
 		return nil, err
+	}
+	if recoveryOnly {
+		if _, err := os.Lstat(filepath.Join(dataDir, ".control.reserve")); err != nil {
+			unlock(lock)
+			return nil, errors.New("recovery requires an existing control reserve")
+		}
 	}
 	reserveCreated, err := ensureControlReserve(dataDir, config.StartupFault)
 	if err != nil {
@@ -122,7 +159,16 @@ func Open(ctx context.Context, config Config) (*Node, error) {
 	}
 	workerContext, stop := context.WithCancel(context.Background())
 	startedAt := timestamp(config.Clock())
-	node := &Node{config: config, db: db, lock: lock, identity: identity, startedAt: startedAt, bootID: bootID, heartbeatAt: startedAt, actions: make(chan struct{}, 1), stop: stop, done: make(chan struct{})}
+	node := &Node{config: config, db: db, lock: lock, identity: identity, startedAt: startedAt, bootID: bootID, heartbeatAt: startedAt, actions: make(chan struct{}, 1), stop: stop, done: make(chan struct{}), recoveryOnly: recoveryOnly}
+	if recoveryOnly {
+		var version int
+		if err := db.QueryRowContext(ctx, "PRAGMA user_version").Scan(&version); err != nil || version != SchemaVersion {
+			stop()
+			_ = db.Close()
+			_ = unlock(lock)
+			return nil, errors.New("recovery requires the current database schema")
+		}
+	}
 	if err := node.initialize(ctx, databaseCreated.valid); err != nil {
 		stop()
 		_ = db.Close()
@@ -130,6 +176,9 @@ func Open(ctx context.Context, config Config) (*Node, error) {
 		cleanupFreshVolume(databaseCreated)
 		_ = unlock(lock)
 		return nil, err
+	}
+	if recoveryOnly {
+		return node, nil
 	}
 	if err := node.reconcileArtifactFiles(ctx); err != nil {
 		stop()

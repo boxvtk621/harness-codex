@@ -40,6 +40,8 @@ LOCAL_ADDITIONS = {
 # Repository-native provider authentication was designed and implemented here;
 # these files were not extracted from the pinned monorepo source.
 LOCAL_DESTINATIONS = {
+    "adapters/codex/unsupported_model_recovery.go",
+    "adapters/codex/unsupported_model_recovery_test.go",
     "adapters/codex/provider_auth.go",
     "adapters/codex/provider_auth_test.go",
     "api/check-provider-auth-v1.mjs",
@@ -48,6 +50,8 @@ LOCAL_DESTINATIONS = {
     "internal/providerauth/types.go",
     "runtime/provider_auth.go",
     "runtime/provider_auth_internal_test.go",
+    "runtime/unsupported_model_recovery.go",
+    "runtime/unsupported_model_recovery_test.go",
 }
 
 

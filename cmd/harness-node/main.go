@@ -93,6 +93,17 @@ func main() {
 	recoverApprovalRace := flag.Bool("recover-completed-approval-race", false, "recover one exactly proven Codex approval acknowledgement race")
 	recoverDeltaOverflow := flag.Bool("recover-codex-delta-overflow", false, "recover one exactly proven Codex assistant delta overflow")
 	recoverCodeMode := flag.Bool("recover-codex-code-mode-delegation", false, "recover one exactly proven Codex Code Mode delegation ordering failure")
+	recoverUnsupportedModel := flag.Bool("recover-codex-unsupported-model", false, "recover one SHA-pinned historical Codex unsupported-model rejection offline")
+	checkRecovery := flag.Bool("check-recovery", false, "validate the unsupported-model recovery proof without mutation")
+	expectedEpoch := flag.Int64("expected-epoch", 0, "exact node epoch")
+	expectedStateVersion := flag.Int64("expected-state-version", 0, "exact node state version")
+	expectedLastEventSeq := flag.Int64("expected-last-event-seq", 0, "exact node event high-water mark")
+	expectedRequestVersion := flag.Int64("expected-request-version", 0, "exact unknown request version")
+	expectedLateObservationID := flag.Int64("expected-late-observation-id", 0, "exact archived terminal row ID")
+	expectedLateHash := flag.String("expected-late-hash", "", "exact archived terminal projection SHA-256")
+	expectedProcessGeneration := flag.Int64("expected-process-generation", 0, "exact persisted Codex process generation")
+	rolloutRelativePath := flag.String("rollout-relative-path", "", "SHA-pinned rollout path relative to CODEX_HOME")
+	rolloutSHA256 := flag.String("rollout-sha256", "", "SHA-256 of complete native rollout")
 	flags := approvalRaceFlags{}
 	flag.StringVar(&flags.dialogID, "dialog-id", "", "exact dialog UUID")
 	flag.StringVar(&flags.requestID, "request-id", "", "exact request UUID")
@@ -110,7 +121,7 @@ func main() {
 	flag.Int64Var(&flags.expectedUnknownSeq, "expected-unknown-seq", 0, "exact adapter protocol unknown event sequence")
 	flag.Int64Var(&flags.expectedDeltaCount, "expected-delta-count", 0, "exact number of fine-grained assistant deltas")
 	flag.Parse()
-	if *path == "" || flag.NArg() != 0 || os.Geteuid() == 0 || boolCount(*recoverApprovalRace, *recoverDeltaOverflow, *recoverCodeMode) > 1 {
+	if *path == "" || flag.NArg() != 0 || os.Geteuid() == 0 || boolCount(*recoverApprovalRace, *recoverDeltaOverflow, *recoverCodeMode, *recoverUnsupportedModel) > 1 {
 		fmt.Fprintln(os.Stderr, "HARNESS_CONFIG_INVALID")
 		os.Exit(2)
 	}
@@ -118,6 +129,42 @@ func main() {
 	defer cancel()
 	diagnostics := diagnosticlog.New(diagnosticlog.Config{Writer: os.Stderr, Component: "harness-codex"})
 	defer diagnostics.Close()
+	unsupportedFlagsSet := *checkRecovery || *expectedEpoch != 0 || *expectedStateVersion != 0 || *expectedLastEventSeq != 0 ||
+		*expectedRequestVersion != 0 || *expectedLateObservationID != 0 || *expectedLateHash != "" ||
+		*expectedProcessGeneration != 0 || *rolloutRelativePath != "" || *rolloutSHA256 != ""
+	if *recoverUnsupportedModel {
+		if flags.approvalID != "" || flags.expectedApprovalVersion != 0 || flags.decision != "" ||
+			flags.callID != "" || flags.expectedToolVersion != 0 || flags.actionHash != "" || flags.commandID != "" ||
+			flags.assistantMessageID != "" || flags.expectedDeltaCount != 0 {
+			fmt.Fprintln(os.Stderr, "HARNESS_CONFIG_INVALID")
+			os.Exit(2)
+		}
+		proof := runtime.CodexUnsupportedModelProof{Attempt: harnessadapter.AttemptRef{
+			NodeID: "", DialogID: flags.dialogID, RequestID: flags.requestID,
+			AttemptID: flags.attemptID, Generation: flags.generation,
+		}, ExpectedEpoch: *expectedEpoch, ExpectedStateVersion: *expectedStateVersion,
+			ExpectedLastEventSeq: *expectedLastEventSeq, ExpectedAttemptVersion: flags.expectedAttemptVersion,
+			ExpectedRequestVersion: *expectedRequestVersion, ExpectedUnknownSeq: flags.expectedUnknownSeq,
+			ExpectedLateObservationID: *expectedLateObservationID, ExpectedLateHash: *expectedLateHash,
+			ExpectedProcessGeneration: *expectedProcessGeneration, RolloutRelativePath: *rolloutRelativePath,
+			RolloutSHA256: *rolloutSHA256}
+		if err := recoverCodexUnsupportedModel(ctx, *path, proof, *checkRecovery, diagnostics); err != nil {
+			diagnostics.Emit(diagnosticlog.LevelError, diagnosticlog.EventRecoveryFailed, diagnosticlog.Fields{Operation: "unsupported_model", Reason: "recovery_failed"})
+			diagnostics.Close()
+			fmt.Fprintln(os.Stderr, "HARNESS_RECOVERY_FAILED")
+			os.Exit(1)
+		}
+		if *checkRecovery {
+			fmt.Fprintln(os.Stdout, "HARNESS_RECOVERY_CHECK_PASSED")
+		} else {
+			fmt.Fprintln(os.Stdout, "HARNESS_RECOVERY_COMPLETED")
+		}
+		return
+	}
+	if unsupportedFlagsSet {
+		fmt.Fprintln(os.Stderr, "HARNESS_CONFIG_INVALID")
+		os.Exit(2)
+	}
 	if *recoverApprovalRace {
 		if flags.expectedUnknownSeq != 0 || flags.expectedDeltaCount != 0 {
 			fmt.Fprintln(os.Stderr, "HARNESS_CONFIG_INVALID")
@@ -447,6 +494,28 @@ func recoverCodexCodeModeDelegation(ctx context.Context, path string, flags appr
 	}
 	defer authority.Close()
 	return authority.RecoverCodexCodeModeDelegation(ctx, flags.codeModeDelegationProof(cfg.NodeID))
+}
+
+func recoverCodexUnsupportedModel(ctx context.Context, path string, proof runtime.CodexUnsupportedModelProof, check bool, diagnostics diagnosticlog.Sink) error {
+	cfg, err := loadConfig(path)
+	if err != nil || selectedAdapter(cfg) != string(harnessadapter.KindCodex) || cfg.Codex == nil {
+		return errors.New("Codex recovery configuration is invalid")
+	}
+	proof.Attempt.NodeID = cfg.NodeID
+	diagnostics.SetNodeID(cfg.NodeID)
+	adapter, err := codex.NewUnsupportedModelRecoveryAdapter(cfg.Codex.StateDir, cfg.Codex.CodexHome, cfg.Codex.Model)
+	if err != nil {
+		return err
+	}
+	authority, err := runtime.OpenForRecovery(ctx, runtime.Config{
+		DataDir: cfg.DataDir, NodeID: cfg.NodeID, OwnerID: cfg.OwnerID,
+		RegistryVersion: cfg.RegistryVersion, Adapter: adapter, Logger: diagnostics,
+	})
+	if err != nil {
+		return err
+	}
+	defer authority.Close()
+	return authority.RecoverCodexUnsupportedModel(ctx, proof, check)
 }
 
 func openProviderAdapter(ctx context.Context, cfg config, artifacts runtime.ArtifactSink, policy harnessadapter.PolicySnapshot, diagnostics diagnosticlog.Sink) (providerAdapter, error) {
