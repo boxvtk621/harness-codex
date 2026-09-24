@@ -7,6 +7,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"reflect"
 	"testing"
 	"time"
 )
@@ -35,6 +36,15 @@ func awaitOperation(t *testing.T, service *Service, id string) Operation {
 type fakeProvider struct{ applyErr error }
 
 type recordingProvider struct{ applied []Settings }
+
+type validatingSpeedProvider struct{ recordingProvider }
+
+func (provider *validatingSpeedProvider) ApplySettings(ctx context.Context, settings Settings, servers []MCPConfig) error {
+	if settings.Inference.SpeedMode != nil && *settings.Inference.SpeedMode != "off" && *settings.Inference.SpeedMode != "on" {
+		return ErrUnsupported
+	}
+	return provider.recordingProvider.ApplySettings(ctx, settings, servers)
+}
 
 func (provider *recordingProvider) ListModels(context.Context, string, int) (ModelPage, error) {
 	return ModelPage{}, nil
@@ -428,5 +438,91 @@ func TestPersistedV1BearerMigratesLosslessly(t *testing.T) {
 	reopened.mu.Unlock()
 	if config.BearerToken != secret {
 		t.Fatal("legacy secret changed")
+	}
+}
+
+func TestPersistedLegacySpeedModesMigrateAndRestore(t *testing.T) {
+	for _, tc := range []struct {
+		name, contract, draftSpeed, appliedSpeed, wantDraft, wantApplied string
+	}{
+		{"v1-priority", "harness-node-settings-v1", "priority", "priority", "on", "on"},
+		{"v1-default", "harness-node-settings-v1", "default", "priority", "off", "on"},
+		{"already-upgraded-v2", Contract, "priority", "default", "on", "off"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			directory := t.TempDir()
+			if _, err := Open(directory, "node", fakeProvider{}); err != nil {
+				t.Fatal(err)
+			}
+			path := filepath.Join(directory, "node-settings-v1.json")
+			model, effort := "gpt-5.6-terra", "low"
+			request := ApplyRequest{CommandID: "stable-command", ExpectedRevision: 5, TargetRevision: 5}
+			payload, err := json.Marshal(request)
+			if err != nil {
+				t.Fatal(err)
+			}
+			operation := Operation{OperationID: "stable-operation", CommandID: request.CommandID, TargetRevision: 5,
+				PreviousRevision: 4, Status: "succeeded", Phase: "verified", CreatedAt: "2026-09-01T00:00:00Z", UpdatedAt: "2026-09-01T00:00:01Z"}
+			seed := persistedState{Contract: tc.contract, NodeID: "node", DraftRevision: 6, AppliedRevision: 5,
+				Draft: persistedSettings{Inference: Inference{ModelID: &model, SpeedMode: &tc.draftSpeed, ReasoningEffort: &effort}},
+				Applied: persistedSettings{Inference: Inference{ModelID: &model, SpeedMode: &tc.appliedSpeed, ReasoningEffort: &effort}},
+				Operations: map[string]Operation{operation.OperationID: operation}, Commands: map[string]string{request.CommandID: operation.OperationID},
+				CommandPayloads: map[string]json.RawMessage{request.CommandID: payload}}
+			raw, err := json.Marshal(seed)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(path, raw, 0o600); err != nil {
+				t.Fatal(err)
+			}
+			provider := &validatingSpeedProvider{}
+			service, err := Open(directory, "node", provider)
+			if err != nil {
+				t.Fatal(err)
+			}
+			snapshot := service.Snapshot()
+			if snapshot.DraftRevision != 6 || snapshot.AppliedRevision != 5 || snapshot.Applied == nil ||
+				snapshot.Draft.Inference.SpeedMode == nil || *snapshot.Draft.Inference.SpeedMode != tc.wantDraft ||
+				snapshot.Applied.Inference.SpeedMode == nil || *snapshot.Applied.Inference.SpeedMode != tc.wantApplied {
+				t.Fatalf("migrated snapshot does not retain revisions and modes: %+v", snapshot)
+			}
+			if err := service.RestoreApplied(context.Background()); err != nil {
+				t.Fatalf("restore rejected migrated applied settings: %v", err)
+			}
+			if len(provider.applied) != 1 || *provider.applied[0].Inference.SpeedMode != tc.wantApplied {
+				t.Fatalf("wrong effective speed restored: %+v", provider.applied)
+			}
+			replay, err := service.Apply(context.Background(), request)
+			if err != nil || replay != operation || len(provider.applied) != 1 {
+				t.Fatalf("durable command replay changed: %+v, %v", replay, err)
+			}
+			encoded, err := os.ReadFile(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var stored persistedState
+			if err := json.Unmarshal(encoded, &stored); err != nil {
+				t.Fatal(err)
+			}
+			seed.Contract = Contract
+			*seed.Draft.Inference.SpeedMode = tc.wantDraft
+			*seed.Applied.Inference.SpeedMode = tc.wantApplied
+			if !reflect.DeepEqual(stored, seed) {
+				t.Fatal("migration changed persisted state beyond contract and speed modes")
+			}
+			restarted := &validatingSpeedProvider{}
+			reopened, err := Open(directory, "node", restarted)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := reopened.RestoreApplied(context.Background()); err != nil || len(restarted.applied) != 1 ||
+				*restarted.applied[0].Inference.SpeedMode != tc.wantApplied {
+				t.Fatalf("second restart lost migrated speed: %+v, %v", restarted.applied, err)
+			}
+			secondEncoded, err := os.ReadFile(path)
+			if err != nil || !bytes.Equal(encoded, secondEncoded) {
+				t.Fatalf("second restart rewrote migrated state: %v", err)
+			}
+		})
 	}
 }

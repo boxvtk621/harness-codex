@@ -115,14 +115,17 @@ func Open(dataDir, nodeID string, provider Provider) (*Service, error) {
 	if err := decoder.Decode(&service.state); err != nil || decoder.Decode(new(any)) != io.EOF || (service.state.Contract != Contract && service.state.Contract != "harness-node-settings-v1") || service.state.NodeID != nodeID || service.state.DraftRevision < service.state.AppliedRevision {
 		return nil, errors.New("node settings state is invalid")
 	}
-	if service.state.Contract != Contract {
-		service.state.Contract = Contract
+	if service.state.Operations == nil || service.state.Commands == nil || service.state.CommandPayloads == nil {
+		return nil, errors.New("node settings state is incomplete")
+	}
+	migrated := service.state.Contract != Contract
+	service.state.Contract = Contract
+	migrated = migrateLegacySpeedMode(&service.state.Draft.Inference) || migrated
+	migrated = migrateLegacySpeedMode(&service.state.Applied.Inference) || migrated
+	if migrated {
 		if err := service.persistLocked(); err != nil {
 			return nil, fmt.Errorf("migrate node settings: %w", err)
 		}
-	}
-	if service.state.Operations == nil || service.state.Commands == nil || service.state.CommandPayloads == nil {
-		return nil, errors.New("node settings state is incomplete")
 	}
 	recovered := false
 	for operationID, operation := range service.state.Operations {
@@ -139,6 +142,26 @@ func Open(dataDir, nodeID string, provider Provider) (*Service, error) {
 		}
 	}
 	return service, nil
+}
+
+// V1 stored native service tier IDs. V2 exposes only the public off/on modes.
+// Handle already-upgraded V2 files too: an earlier migration could have
+// persisted the new contract before translating these values.
+func migrateLegacySpeedMode(inference *Inference) bool {
+	if inference.SpeedMode == nil {
+		return false
+	}
+	switch *inference.SpeedMode {
+	case "priority":
+		mode := "on"
+		inference.SpeedMode = &mode
+	case "default":
+		mode := "off"
+		inference.SpeedMode = &mode
+	default:
+		return false
+	}
+	return true
 }
 
 func (service *Service) Snapshot() Snapshot {
