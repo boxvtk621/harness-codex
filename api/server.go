@@ -7,6 +7,8 @@ import (
 	"io"
 	"mime"
 	"net/http"
+	"reflect"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -53,6 +55,7 @@ func New(config Config, authority *node.Node) (http.Handler, error) {
 	mux.HandleFunc("GET /v1/nodes/{nodeId}/settings/model-catalog", server.nodeSettingsModels)
 	mux.HandleFunc("POST /v1/nodes/{nodeId}/settings/model-catalog", server.nodeSettingsModels)
 	mux.HandleFunc("POST /v1/nodes/{nodeId}/settings/mcp-checks", server.nodeSettingsMCPCheck)
+	mux.HandleFunc("POST /v1/nodes/{nodeId}/settings/mcp-validate", server.nodeSettingsMCPValidate)
 	mux.HandleFunc("POST /v1/nodes/{nodeId}/settings/apply", server.nodeSettingsApply)
 	mux.HandleFunc("GET /v1/nodes/{nodeId}/settings/operations/{operationId}", server.nodeSettingsOperation)
 	mux.HandleFunc("GET /v1/nodes/{nodeId}/admission", server.admission)
@@ -166,6 +169,33 @@ func (server *Server) nodeSettingsMCPCheck(writer http.ResponseWriter, request *
 	writeNodeSettings(writer, http.StatusOK, result)
 }
 
+func (server *Server) nodeSettingsMCPValidate(writer http.ResponseWriter, request *http.Request) {
+	if !server.nodeSettingsAuthorized(writer, request) {
+		return
+	}
+	if !validQuery(request) {
+		writeNodeSettingsError(writer, nodesettings.ErrInvalid)
+		return
+	}
+	var input struct {
+		MCPDocument nodesettings.MCPDocumentInput `json:"mcpDocument"`
+	}
+	if !decodeNodeSettingsJSON(writer, request, &input) {
+		return
+	}
+	err := server.config.NodeSettings.ValidateMCPDocument(input.MCPDocument)
+	result := map[string]any{"schemaId": "harness-mcp-validation-v2", "valid": err == nil, "errors": []map[string]string{}}
+	if err != nil {
+		path := "/mcpDocument"
+		var validation *nodesettings.ValidationError
+		if errors.As(err, &validation) {
+			path = strings.TrimPrefix(validation.Path, "/draft")
+		}
+		result["errors"] = []map[string]string{{"path": path, "code": "invalid"}}
+	}
+	writeNodeSettings(writer, http.StatusOK, result)
+}
+
 func (server *Server) nodeSettingsApply(writer http.ResponseWriter, request *http.Request) {
 	if !server.nodeSettingsAuthorized(writer, request) {
 		return
@@ -227,13 +257,86 @@ func (server *Server) nodeSettingsAuthorized(writer http.ResponseWriter, request
 
 func decodeNodeSettingsJSON(writer http.ResponseWriter, request *http.Request, output any) bool {
 	reader := http.MaxBytesReader(writer, request.Body, 1<<20)
+	var raw json.RawMessage
 	decoder := json.NewDecoder(reader)
-	decoder.DisallowUnknownFields()
-	if decoder.Decode(output) != nil || decoder.Decode(new(any)) != io.EOF {
+	if decoder.Decode(&raw) != nil || decoder.Decode(new(any)) != io.EOF {
+		writeNodeSettingsError(writer, nodesettings.ErrInvalid)
+		return false
+	}
+	var generic any
+	if json.Unmarshal(raw, &generic) != nil {
+		writeNodeSettingsError(writer, nodesettings.ErrInvalid)
+		return false
+	}
+	if path := unknownJSONPath(generic, reflect.TypeOf(output), ""); path != "" {
+		writeNodeSettingsError(writer, &nodesettings.ValidationError{Path: path, Code: "unknown_field"})
+		return false
+	}
+	strict := json.NewDecoder(strings.NewReader(string(raw)))
+	strict.DisallowUnknownFields()
+	if strict.Decode(output) != nil {
 		writeNodeSettingsError(writer, nodesettings.ErrInvalid)
 		return false
 	}
 	return true
+}
+
+func unknownJSONPath(value any, typ reflect.Type, path string) string {
+	for typ.Kind() == reflect.Pointer {
+		typ = typ.Elem()
+	}
+	switch typ.Kind() {
+	case reflect.Struct:
+		object, ok := value.(map[string]any)
+		if !ok {
+			return ""
+		}
+		fields := map[string]reflect.Type{}
+		for i := 0; i < typ.NumField(); i++ {
+			field := typ.Field(i)
+			name := strings.Split(field.Tag.Get("json"), ",")[0]
+			if name != "" && name != "-" {
+				fields[name] = field.Type
+			}
+		}
+		keys := make([]string, 0, len(object))
+		for key := range object {
+			keys = append(keys, key)
+		}
+		sort.Strings(keys)
+		for _, key := range keys {
+			child := object[key]
+			field, exists := fields[key]
+			childPath := path + "/" + strings.ReplaceAll(strings.ReplaceAll(key, "~", "~0"), "/", "~1")
+			if !exists {
+				return childPath
+			}
+			if unknown := unknownJSONPath(child, field, childPath); unknown != "" {
+				return unknown
+			}
+		}
+	case reflect.Slice, reflect.Array:
+		array, ok := value.([]any)
+		if !ok {
+			return ""
+		}
+		for i, child := range array {
+			if unknown := unknownJSONPath(child, typ.Elem(), path+"/"+strconv.Itoa(i)); unknown != "" {
+				return unknown
+			}
+		}
+	case reflect.Map:
+		object, ok := value.(map[string]any)
+		if !ok {
+			return ""
+		}
+		for key, child := range object {
+			if unknown := unknownJSONPath(child, typ.Elem(), path+"/"+strings.ReplaceAll(strings.ReplaceAll(key, "~", "~0"), "/", "~1")); unknown != "" {
+				return unknown
+			}
+		}
+	}
+	return ""
 }
 
 func writeNodeSettingsError(writer http.ResponseWriter, err error) {
@@ -249,6 +352,11 @@ func writeNodeSettingsError(writer http.ResponseWriter, err error) {
 		status, code = http.StatusNotFound, "not_found"
 	case errors.Is(err, nodesettings.ErrUnsupported):
 		status, code = http.StatusUnprocessableEntity, "unsupported"
+	}
+	var validation *nodesettings.ValidationError
+	if errors.As(err, &validation) {
+		writeNodeSettings(writer, status, map[string]any{"code": code, "errors": []map[string]string{{"path": validation.Path, "code": validation.Code}}})
+		return
 	}
 	writeNodeSettings(writer, status, map[string]string{"code": code})
 }

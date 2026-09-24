@@ -11,6 +11,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"sync"
 	"time"
@@ -295,6 +296,7 @@ type nativeServiceTier struct {
 }
 type nativeModel struct {
 	ID                        string                  `json:"id"`
+	IsDefault                 bool                    `json:"isDefault"`
 	Model                     string                  `json:"model"`
 	SupportedReasoningEfforts []nativeReasoningEffort `json:"supportedReasoningEfforts"`
 	DefaultReasoningEffort    *string                 `json:"defaultReasoningEffort"`
@@ -336,7 +338,7 @@ func (adapter *Adapter) ListModels(ctx context.Context, cursor string, limit int
 			return nodesettings.ModelPage{}, errors.New("codex model catalog item is invalid")
 		}
 		seen[native.ID] = true
-		model := nodesettings.Model{ID: native.ID, Model: native.Model, DefaultReasoningEffort: native.DefaultReasoningEffort, DefaultServiceTier: native.DefaultServiceTier, AdditionalSpeedTiers: append([]string(nil), native.AdditionalSpeedTiers...)}
+		model := nodesettings.Model{ID: native.ID, Model: native.Model, IsDefault: native.IsDefault, DefaultReasoningEffort: native.DefaultReasoningEffort, DefaultServiceTier: native.DefaultServiceTier, AdditionalSpeedTiers: append([]string(nil), native.AdditionalSpeedTiers...)}
 		for _, effort := range native.SupportedReasoningEfforts {
 			model.SupportedReasoningEfforts = append(model.SupportedReasoningEfforts, effort.ReasoningEffort)
 		}
@@ -357,7 +359,7 @@ func (adapter *Adapter) CheckMCP(ctx context.Context, server nodesettings.MCPCon
 	currentSettings := adapter.settings
 	configured := false
 	for _, current := range currentSettings.MCPServers {
-		if current.ID == server.ID && current.Enabled == server.Enabled && current.URL == server.URL && current.TimeoutMS == server.TimeoutMS && current.Auth.Kind == server.Auth.Kind && current.BearerToken == server.BearerToken {
+		if current.ID == server.ID && current.Enabled == server.Enabled && current.URL == server.URL && current.Transport == server.Transport && current.Command == server.Command && current.TimeoutMS == server.TimeoutMS && current.Auth.Kind == server.Auth.Kind && current.BearerToken == server.BearerToken && reflect.DeepEqual(current.Args, server.Args) && reflect.DeepEqual(current.SecretValues, server.SecretValues) {
 			configured = true
 			break
 		}
@@ -415,39 +417,53 @@ func (adapter *Adapter) CheckMCP(ctx context.Context, server nodesettings.MCPCon
 
 func (adapter *Adapter) PreflightSettings(ctx context.Context, settings nodesettings.Settings, servers []nodesettings.MCPConfig) error {
 	_ = servers
-	modelID := adapter.config.Model
+	var modelID string
 	if settings.Inference.ModelID != nil {
 		modelID = *settings.Inference.ModelID
 	}
+	model, err := adapter.resolveModel(ctx, modelID)
+	if err != nil {
+		return err
+	}
+	if settings.Inference.ReasoningEffort != nil && !containsValue(model.SupportedReasoningEfforts, *settings.Inference.ReasoningEffort) {
+		return nodesettings.ErrUnsupported
+	}
+	if settings.Inference.ReasoningEffort == nil && (model.DefaultReasoningEffort == nil || !containsValue(model.SupportedReasoningEfforts, *model.DefaultReasoningEffort)) {
+		return nodesettings.ErrUnsupported
+	}
+	if settings.Inference.SpeedMode != nil && *settings.Inference.SpeedMode == "on" && !containsValue(model.ServiceTiers, "priority") && !containsValue(model.AdditionalSpeedTiers, "priority") {
+		return nodesettings.ErrUnsupported
+	}
+	if settings.Inference.SpeedMode != nil && *settings.Inference.SpeedMode != "off" && *settings.Inference.SpeedMode != "on" {
+		return nodesettings.ErrUnsupported
+	}
+	return nil
+}
+
+func (adapter *Adapter) resolveModel(ctx context.Context, modelID string) (nodesettings.Model, error) {
 	var cursor string
 	seen := map[string]bool{}
 	for pageNo := 0; pageNo < maximumFeaturePages; pageNo++ {
 		page, err := adapter.ListModels(ctx, cursor, 100)
 		if err != nil {
-			return err
+			return nodesettings.Model{}, err
 		}
 		for _, model := range page.Models {
-			if model.ID != modelID {
+			if model.ID != modelID && !(modelID == "" && model.IsDefault) {
 				continue
 			}
-			if settings.Inference.ReasoningEffort != nil && !containsValue(model.SupportedReasoningEfforts, *settings.Inference.ReasoningEffort) {
-				return nodesettings.ErrUnsupported
-			}
-			if settings.Inference.SpeedMode != nil && !containsValue(model.ServiceTiers, *settings.Inference.SpeedMode) {
-				return nodesettings.ErrUnsupported
-			}
-			return nil
+			return model, nil
 		}
 		if page.NextCursor == nil {
-			return nodesettings.ErrUnsupported
+			return nodesettings.Model{}, nodesettings.ErrUnsupported
 		}
 		cursor = *page.NextCursor
 		if seen[cursor] {
-			return errors.New("codex model catalog cursor repeats")
+			return nodesettings.Model{}, errors.New("codex model catalog cursor repeats")
 		}
 		seen[cursor] = true
 	}
-	return errors.New("codex model catalog exceeds page limit")
+	return nodesettings.Model{}, errors.New("codex model catalog exceeds page limit")
 }
 
 func containsValue(values []string, target string) bool {
@@ -475,13 +491,22 @@ func (adapter *Adapter) ApplySettings(ctx context.Context, settings nodesettings
 	old := adapter.session
 	adapter.mu.Unlock()
 	candidate := previous
-	candidate.Model = adapter.config.Model
-	candidate.Effort = adapter.config.Effort
+	candidate.Model = ""
+	candidate.Effort = ""
 	if settings.Inference.ModelID != nil {
 		candidate.Model = *settings.Inference.ModelID
 	}
 	if settings.Inference.ReasoningEffort != nil {
 		candidate.Effort = *settings.Inference.ReasoningEffort
+	} else {
+		model, err := adapter.resolveModel(ctx, candidate.Model)
+		if err != nil {
+			return err
+		}
+		if model.DefaultReasoningEffort == nil {
+			return nodesettings.ErrUnsupported
+		}
+		candidate.Effort = *model.DefaultReasoningEffort
 	}
 	candidate.Speed = settings.Inference.SpeedMode
 	candidate.MCPServers = append([]nodesettings.MCPConfig(nil), servers...)
@@ -555,7 +580,7 @@ func (adapter *Adapter) restartSession(ctx context.Context, environment []string
 func (adapter *Adapter) verifyAppliedSettings(ctx context.Context, config activeSettings) error {
 	model := config.Model
 	effort := config.Effort
-	if err := adapter.PreflightSettings(ctx, nodesettings.Settings{Inference: nodesettings.Inference{ModelID: &model, ReasoningEffort: &effort, SpeedMode: config.Speed}}, config.MCPServers); err != nil {
+	if err := adapter.PreflightSettings(ctx, nodesettings.Settings{Inference: nodesettings.Inference{ModelID: optionalNativeString(model), ReasoningEffort: optionalNativeString(effort), SpeedMode: config.Speed}}, config.MCPServers); err != nil {
 		return err
 	}
 	adapter.mu.Lock()
@@ -753,12 +778,7 @@ func (adapter *Adapter) dispatch(ctx context.Context, kind string, reference har
 	}
 	var turnResponse nativeTurnResponse
 	active := adapter.currentSettings()
-	if err := adapter.session.Call(operationCtx, "turn/start", nativeTurnParams{
-		ThreadID: threadID, Input: []nativeUserInput{{Type: "text", Text: prompt}}, ClientUserMessageID: boundary.MessageID,
-		CWD: workspace, ApprovalPolicy: nativeApprovalPolicy(), ApprovalsReviewer: nativeApprovalsReviewer(),
-		SandboxPolicy: readOnlySandboxPolicy(),
-		Model:         active.Model, Effort: active.Effort, ServiceTier: active.Speed,
-	}, &turnResponse); err != nil {
+	if err := adapter.session.Call(operationCtx, "turn/start", turnParamsWithSettings(threadID, prompt, boundary.MessageID, workspace, active), &turnResponse); err != nil {
 		native.runtime.failUnknown("dispatch_uncertain")
 		return nil, err
 	}
@@ -1138,7 +1158,7 @@ func (adapter *Adapter) Close() error {
 
 type nativeThreadOptions struct {
 	ThreadID              string                  `json:"threadId,omitempty"`
-	Model                 string                  `json:"model"`
+	Model                 *string                 `json:"model"`
 	ServiceTier           *string                 `json:"serviceTier,omitempty"`
 	CWD                   string                  `json:"cwd"`
 	ApprovalPolicy        string                  `json:"approvalPolicy"`
@@ -1201,8 +1221,8 @@ type nativeTurnParams struct {
 	ApprovalPolicy      string              `json:"approvalPolicy"`
 	ApprovalsReviewer   string              `json:"approvalsReviewer"`
 	SandboxPolicy       nativeSandboxPolicy `json:"sandboxPolicy"`
-	Model               string              `json:"model"`
-	Effort              string              `json:"effort"`
+	Model               *string             `json:"model"`
+	Effort              *string             `json:"effort"`
 	ServiceTier         *string             `json:"serviceTier,omitempty"`
 }
 
@@ -1226,26 +1246,54 @@ func (adapter *Adapter) threadOptionsWithSettings(policy harnessadapter.PolicySn
 		if !server.Enabled {
 			continue
 		}
-		entry := map[string]any{"url": server.URL, "enabled": true,
+		entry := map[string]any{"enabled": true,
 			"startup_timeout_sec": float64(server.TimeoutMS) / 1000, "tool_timeout_sec": float64(server.TimeoutMS) / 1000}
-		if server.Auth.Kind == "bearer" {
-			entry["bearer_token_env_var"] = mcpTokenVariable(server.ID)
+		if server.Transport == "stdio" {
+			entry["command"] = server.Command
+			entry["args"] = server.Args
+			if len(server.SecretValues) > 0 {
+				entry["env"] = server.SecretValues
+			}
+		} else {
+			entry["url"] = server.URL
+			if server.Auth.Kind == "bearer" {
+				entry["bearer_token_env_var"] = mcpTokenVariable(server.ID)
+			}
 		}
 		mcpServers[server.ID] = entry
 	}
 	options := nativeThreadOptions{
-		Model: settings.Model, ServiceTier: settings.Speed, CWD: workspace, ApprovalPolicy: nativeApprovalPolicy(),
+		Model: optionalNativeString(settings.Model), ServiceTier: serviceTierForTurn(settings.Speed), CWD: workspace, ApprovalPolicy: nativeApprovalPolicy(),
 		ApprovalsReviewer: nativeApprovalsReviewer(), Sandbox: "read-only",
 		DeveloperInstructions: string(policy.Content),
 		Config: map[string]any{
 			"features": nativeFeatureOverrides(policy), "mcp_servers": mcpServers,
-			"model_reasoning_effort": settings.Effort, "web_search": "disabled",
+			"model_reasoning_effort": optionalNativeString(settings.Effort), "web_search": "disabled",
 		},
 	}
 	if includeDynamicTools && policy.ApprovalMode == harnessadapter.ApprovalModeExplicitOnce {
 		options.DynamicTools = codexDynamicTools()
 	}
 	return options
+}
+
+func optionalNativeString(value string) *string {
+	if value == "" {
+		return nil
+	}
+	copy := value
+	return &copy
+}
+func serviceTierForTurn(speed *string) *string {
+	tier := "default"
+	if speed != nil && *speed == "on" {
+		tier = "priority"
+	}
+	return &tier
+}
+
+func turnParamsWithSettings(threadID, prompt, messageID, workspace string, settings activeSettings) nativeTurnParams {
+	return nativeTurnParams{ThreadID: threadID, Input: []nativeUserInput{{Type: "text", Text: prompt}}, ClientUserMessageID: messageID, CWD: workspace, ApprovalPolicy: nativeApprovalPolicy(), ApprovalsReviewer: nativeApprovalsReviewer(), SandboxPolicy: readOnlySandboxPolicy(), Model: optionalNativeString(settings.Model), Effort: optionalNativeString(settings.Effort), ServiceTier: serviceTierForTurn(settings.Speed)}
 }
 
 func nativeFeatureOverrides(_ harnessadapter.PolicySnapshot) map[string]bool {

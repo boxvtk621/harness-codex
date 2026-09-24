@@ -13,6 +13,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -20,6 +21,16 @@ import (
 )
 
 var identifier = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$`)
+var environmentName = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]{0,127}$`)
+
+type ValidationError struct {
+	Path string
+	Code string
+}
+
+func (e *ValidationError) Error() string { return "invalid node settings at " + e.Path }
+func (e *ValidationError) Unwrap() error { return ErrInvalid }
+func invalid(path string) error          { return &ValidationError{Path: path, Code: "invalid"} }
 
 var (
 	ErrInvalid        = errors.New("node settings input is invalid")
@@ -77,6 +88,19 @@ func Open(dataDir, nodeID string, provider Provider) (*Service, error) {
 	if dataDir == "" || nodeID == "" || provider == nil {
 		return nil, ErrInvalid
 	}
+	if err := os.Mkdir(dataDir, 0o700); err != nil && !errors.Is(err, os.ErrExist) {
+		return nil, fmt.Errorf("create node settings data directory: %w", err)
+	}
+	info, err := os.Lstat(dataDir)
+	if err != nil || !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
+		return nil, errors.New("node settings data directory is unsafe")
+	}
+	if info.Mode().Perm()&0o077 != 0 {
+		entries, readErr := os.ReadDir(dataDir)
+		if readErr != nil || len(entries) != 0 || os.Chmod(dataDir, 0o700) != nil {
+			return nil, errors.New("node settings data directory is unsafe")
+		}
+	}
 	service := &Service{path: filepath.Join(dataDir, "node-settings-v1.json"), provider: provider, now: time.Now, syncDirectory: syncDirectory}
 	service.state = persistedState{Contract: Contract, NodeID: nodeID, Operations: map[string]Operation{}, Commands: map[string]string{}, CommandPayloads: map[string]json.RawMessage{}}
 	raw, err := os.ReadFile(service.path)
@@ -88,8 +112,14 @@ func Open(dataDir, nodeID string, provider Provider) (*Service, error) {
 	}
 	decoder := json.NewDecoder(bytes.NewReader(raw))
 	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(&service.state); err != nil || decoder.Decode(new(any)) != io.EOF || service.state.Contract != Contract || service.state.NodeID != nodeID || service.state.DraftRevision < service.state.AppliedRevision {
+	if err := decoder.Decode(&service.state); err != nil || decoder.Decode(new(any)) != io.EOF || (service.state.Contract != Contract && service.state.Contract != "harness-node-settings-v1") || service.state.NodeID != nodeID || service.state.DraftRevision < service.state.AppliedRevision {
 		return nil, errors.New("node settings state is invalid")
+	}
+	if service.state.Contract != Contract {
+		service.state.Contract = Contract
+		if err := service.persistLocked(); err != nil {
+			return nil, fmt.Errorf("migrate node settings: %w", err)
+		}
 	}
 	if service.state.Operations == nil || service.state.Commands == nil || service.state.CommandPayloads == nil {
 		return nil, errors.New("node settings state is incomplete")
@@ -314,7 +344,7 @@ func (service *Service) Models(ctx context.Context, cursor string, limit int) (M
 	if err != nil {
 		return ModelPage{}, err
 	}
-	page.SchemaID = "harness-model-catalog-v1"
+	page.SchemaID = "harness-model-catalog-v2"
 	page.NodeID = service.state.NodeID
 	page.CatalogRevision = page.ProcessGeneration
 	page.FetchedAt = service.now().UTC().Format(time.RFC3339Nano)
@@ -329,7 +359,11 @@ func (service *Service) Models(ctx context.Context, cursor string, limit int) (M
 			model.DisplayName = model.ID
 		}
 		model.ReasoningEfforts = modes(model.SupportedReasoningEfforts, model.DefaultReasoningEffort)
-		model.SpeedModes = modes(model.ServiceTiers, model.DefaultServiceTier)
+		model.SpeedModes = []Mode{{ID: "off", IsDefault: true}}
+		if containsCatalogValue(model.ServiceTiers, "priority") || containsCatalogValue(model.AdditionalSpeedTiers, "priority") {
+			model.SpeedModes = append(model.SpeedModes, Mode{ID: "on"})
+		}
+		model.Compatibility = "unknown"
 	}
 	return page, nil
 }
@@ -377,9 +411,46 @@ func modes(values []string, defaultValue *string) []Mode {
 	return result
 }
 
+// ValidateMCPDocument checks an unsaved document against the current draft.
+// It makes no network calls and leaves revisions and secrets unchanged.
+func (service *Service) ValidateMCPDocument(document MCPDocumentInput) error {
+	service.mu.Lock()
+	defer service.mu.Unlock()
+	_, err := mergeSettings(service.state.Draft, SettingsInput{Draft: DraftInput{Inference: service.state.Draft.Inference, MCPDocument: &document}})
+	return err
+}
+
+func containsCatalogValue(values []string, target string) bool {
+	for _, value := range values {
+		if value == target {
+			return true
+		}
+	}
+	return false
+}
+
 func mergeSettings(current persistedSettings, input SettingsInput) (persistedSettings, error) {
-	if len(input.Draft.MCPServers) > 64 || !optionalIdentifier(input.Draft.Inference.ModelID) || !optionalIdentifier(input.Draft.Inference.SpeedMode) || !optionalIdentifier(input.Draft.Inference.ReasoningEffort) {
-		return persistedSettings{}, ErrInvalid
+	servers := input.Draft.MCPServers
+	if input.Draft.MCPDocument != nil {
+		if input.Draft.MCPServers != nil || input.Draft.MCPDocument.SchemaID != MCPDocumentSchema {
+			return persistedSettings{}, invalid("/draft/mcpDocument/schemaId")
+		}
+		if input.Draft.MCPDocument.Servers == nil {
+			return persistedSettings{}, invalid("/draft/mcpDocument/servers")
+		}
+		servers = input.Draft.MCPDocument.Servers
+	}
+	if len(servers) > 64 {
+		return persistedSettings{}, invalid("/draft/mcpDocument/servers")
+	}
+	if !optionalIdentifier(input.Draft.Inference.ModelID) {
+		return persistedSettings{}, invalid("/draft/inference/modelId")
+	}
+	if input.Draft.Inference.SpeedMode != nil && *input.Draft.Inference.SpeedMode != "off" && *input.Draft.Inference.SpeedMode != "on" {
+		return persistedSettings{}, invalid("/draft/inference/speedMode")
+	}
+	if !optionalIdentifier(input.Draft.Inference.ReasoningEffort) {
+		return persistedSettings{}, invalid("/draft/inference/reasoningEffort")
 	}
 	prior := make(map[string]persistedMCP, len(current.MCPServers))
 	for _, server := range current.MCPServers {
@@ -387,23 +458,104 @@ func mergeSettings(current persistedSettings, input SettingsInput) (persistedSet
 	}
 	next := persistedSettings{Inference: Inference{ModelID: cloneString(input.Draft.Inference.ModelID), SpeedMode: cloneString(input.Draft.Inference.SpeedMode), ReasoningEffort: cloneString(input.Draft.Inference.ReasoningEffort)}}
 	seen := map[string]bool{}
-	for _, candidate := range input.Draft.MCPServers {
-		parsed, parseErr := url.Parse(candidate.URL)
-		if !identifier.MatchString(candidate.ID) || !validText(candidate.Name, 200) || parseErr != nil || parsed == nil || parsed.Scheme != "https" || parsed.Host == "" || parsed.User != nil || seen[candidate.ID] || candidate.Transport != "streamable_http" || candidate.TimeoutMS < 100 || candidate.TimeoutMS > 30000 || (candidate.Auth.Kind != "none" && candidate.Auth.Kind != "bearer") {
-			return persistedSettings{}, ErrInvalid
+	for index, candidate := range servers {
+		base := fmt.Sprintf("/draft/mcpDocument/servers/%d", index)
+		if candidate.ForbiddenPath != "" {
+			return persistedSettings{}, invalid(base + "/" + candidate.ForbiddenPath)
+		}
+		if !identifier.MatchString(candidate.ID) || seen[candidate.ID] {
+			return persistedSettings{}, invalid(base + "/id")
+		}
+		if !validText(candidate.Name, 200) {
+			return persistedSettings{}, invalid(base + "/name")
+		}
+		if candidate.TimeoutMS < 100 || candidate.TimeoutMS > 30000 {
+			return persistedSettings{}, invalid(base + "/timeoutMs")
 		}
 		seen[candidate.ID] = true
-		server := persistedMCP{ID: candidate.ID, Name: candidate.Name, Enabled: candidate.Enabled, URL: candidate.URL, Transport: candidate.Transport, TimeoutMS: candidate.TimeoutMS, AuthKind: candidate.Auth.Kind}
+		server := persistedMCP{ID: candidate.ID, Name: candidate.Name, Enabled: candidate.Enabled, Transport: candidate.Transport, TimeoutMS: candidate.TimeoutMS}
+		switch candidate.Transport {
+		case "streamable_http":
+			parsed, parseErr := url.Parse(candidate.URL)
+			if parseErr != nil || parsed == nil || parsed.Scheme != "https" || parsed.Host == "" || parsed.User != nil {
+				return persistedSettings{}, invalid(base + "/url")
+			}
+			if candidate.Command != "" || candidate.Args != nil || candidate.SecretSlots != nil {
+				return persistedSettings{}, invalid(base)
+			}
+			if candidate.Auth.Kind != "none" && candidate.Auth.Kind != "bearer" {
+				return persistedSettings{}, invalid(base + "/auth/kind")
+			}
+			server.URL, server.AuthKind = candidate.URL, candidate.Auth.Kind
+		case "stdio":
+			if candidate.URL != "" || candidate.Auth.Kind != "" || candidate.Auth.SecretAction != "" || candidate.Auth.Secret != nil {
+				return persistedSettings{}, invalid(base)
+			}
+			if !validText(candidate.Command, 1024) || len(candidate.Args) > 64 || len(candidate.SecretSlots) > 64 {
+				return persistedSettings{}, invalid(base + "/command")
+			}
+			server.Command = candidate.Command
+			server.Args = append([]string(nil), candidate.Args...)
+			for _, arg := range server.Args {
+				if !utf8.ValidString(arg) || len(arg) > 4096 || strings.ContainsRune(arg, 0) {
+					return persistedSettings{}, invalid(base + "/args")
+				}
+			}
+			server.SecretSlots = make(map[string]persistedSecret)
+			seenSlots := map[string]bool{}
+			for slotIndex, slot := range candidate.SecretSlots {
+				path := fmt.Sprintf("%s/secretSlots/%d", base, slotIndex)
+				if !environmentName.MatchString(slot.Slot) {
+					return persistedSettings{}, invalid(path + "/slot")
+				}
+				if seenSlots[slot.Slot] {
+					return persistedSettings{}, invalid(path + "/slot")
+				}
+				seenSlots[slot.Slot] = true
+				old, exists := prior[candidate.ID].SecretSlots[slot.Slot]
+				switch slot.Action {
+				case "keep":
+					if !exists || slot.Secret != nil {
+						return persistedSettings{}, invalid(path + "/action")
+					}
+					server.SecretSlots[slot.Slot] = old
+				case "replace":
+					if slot.Secret == nil || !validText(*slot.Secret, 8192) {
+						return persistedSettings{}, invalid(path + "/secret")
+					}
+					version := int64(1)
+					if exists {
+						version = old.Version + 1
+					}
+					server.SecretSlots[slot.Slot] = persistedSecret{Value: *slot.Secret, Version: version}
+				case "remove":
+					if slot.Secret != nil {
+						return persistedSettings{}, invalid(path + "/secret")
+					}
+				default:
+					return persistedSettings{}, invalid(path + "/action")
+				}
+			}
+			for priorSlot := range prior[candidate.ID].SecretSlots {
+				if !seenSlots[priorSlot] {
+					return persistedSettings{}, invalid(base + "/secretSlots")
+				}
+			}
+			next.MCPServers = append(next.MCPServers, server)
+			continue
+		default:
+			return persistedSettings{}, invalid(base + "/transport")
+		}
 		old := prior[candidate.ID].BearerToken
 		switch candidate.Auth.SecretAction {
 		case "keep":
 			if candidate.Auth.Kind != "bearer" || candidate.Auth.Secret != nil || old == nil {
-				return persistedSettings{}, ErrInvalid
+				return persistedSettings{}, invalid(base + "/auth/secretAction")
 			}
 			server.BearerToken = old
 		case "replace":
 			if candidate.Auth.Kind != "bearer" || candidate.Auth.Secret == nil || !validText(*candidate.Auth.Secret, 8192) {
-				return persistedSettings{}, ErrInvalid
+				return persistedSettings{}, invalid(base + "/auth/secret")
 			}
 			version := int64(1)
 			if old != nil {
@@ -412,14 +564,14 @@ func mergeSettings(current persistedSettings, input SettingsInput) (persistedSet
 			server.BearerToken = &persistedSecret{Value: *candidate.Auth.Secret, Version: version}
 		case "remove":
 			if candidate.Auth.Secret != nil {
-				return persistedSettings{}, ErrInvalid
+				return persistedSettings{}, invalid(base + "/auth/secret")
 			}
 		case "":
 			if candidate.Auth.Kind != "none" || candidate.Auth.Secret != nil {
-				return persistedSettings{}, ErrInvalid
+				return persistedSettings{}, invalid(base + "/auth/secretAction")
 			}
 		default:
-			return persistedSettings{}, ErrInvalid
+			return persistedSettings{}, invalid(base + "/auth/secretAction")
 		}
 		next.MCPServers = append(next.MCPServers, server)
 	}
@@ -427,7 +579,7 @@ func mergeSettings(current persistedSettings, input SettingsInput) (persistedSet
 }
 
 func (service *Service) snapshotLocked() Snapshot {
-	result := Snapshot{SchemaID: Contract, NodeID: service.state.NodeID, DraftRevision: service.state.DraftRevision, AppliedRevision: service.state.AppliedRevision, Draft: publicSettings(service.state.Draft), Capabilities: map[string]string{"provider": "codex", "modelCatalog": "runtime", "modelDefault": "supported", "mcpCheck": "runtime", "mcpTimeout": "supported", "nativeRestart": "managed"}}
+	result := Snapshot{SchemaID: Contract, MCPSchema: MCPDocumentSchema, NodeID: service.state.NodeID, DraftRevision: service.state.DraftRevision, AppliedRevision: service.state.AppliedRevision, Draft: publicSettings(service.state.Draft), Capabilities: map[string]string{"provider": "codex", "modelCatalog": "runtime", "modelDefault": "supported", "reasoningDefault": "supported", "speedDefault": "supported", "mcpCheck": "runtime", "mcpTimeout": "supported", "nativeRestart": "managed", "mcpTransports": "streamable_http,stdio", "speedModes": "off,on"}}
 	if service.state.AppliedRevision > 0 {
 		applied := publicSettings(service.state.Applied)
 		result.Applied = &applied
@@ -442,9 +594,10 @@ func (service *Service) snapshotLocked() Snapshot {
 }
 
 func publicSettings(settings persistedSettings) Settings {
-	result := Settings{Inference: Inference{ModelID: cloneString(settings.Inference.ModelID), SpeedMode: cloneString(settings.Inference.SpeedMode), ReasoningEffort: cloneString(settings.Inference.ReasoningEffort)}}
+	result := Settings{Inference: Inference{ModelID: cloneString(settings.Inference.ModelID), SpeedMode: cloneString(settings.Inference.SpeedMode), ReasoningEffort: cloneString(settings.Inference.ReasoningEffort)}, MCPDocument: MCPDocument{SchemaID: MCPDocumentSchema, Servers: []MCPServer{}}}
 	for _, server := range settings.MCPServers {
 		result.MCPServers = append(result.MCPServers, publicMCP(server))
+		result.MCPDocument.Servers = append(result.MCPDocument.Servers, publicMCP(server))
 	}
 	if result.MCPServers == nil {
 		result.MCPServers = []MCPServer{}
@@ -453,7 +606,14 @@ func publicSettings(settings persistedSettings) Settings {
 }
 
 func publicMCP(server persistedMCP) MCPServer {
-	result := MCPServer{ID: server.ID, Name: server.Name, Enabled: server.Enabled, URL: server.URL, Transport: server.Transport, TimeoutMS: server.TimeoutMS, Auth: MCPAuth{Kind: server.AuthKind, BearerTokenConfigured: server.BearerToken != nil}}
+	result := MCPServer{ID: server.ID, Name: server.Name, Enabled: server.Enabled, URL: server.URL, Transport: server.Transport, TimeoutMS: server.TimeoutMS, Command: server.Command, Args: append([]string(nil), server.Args...)}
+	if server.Transport == "streamable_http" {
+		result.Auth = MCPAuth{Kind: server.AuthKind, BearerTokenConfigured: server.BearerToken != nil}
+	}
+	for slot := range server.SecretSlots {
+		result.SecretSlots = append(result.SecretSlots, SecretSlot{Slot: slot, Configured: true})
+	}
+	sort.Slice(result.SecretSlots, func(i, j int) bool { return result.SecretSlots[i].Slot < result.SecretSlots[j].Slot })
 	return result
 }
 
@@ -461,6 +621,12 @@ func providerMCP(server persistedMCP) MCPConfig {
 	result := MCPConfig{MCPServer: publicMCP(server)}
 	if server.AuthKind == "bearer" && server.BearerToken != nil {
 		result.BearerToken = server.BearerToken.Value
+	}
+	if len(server.SecretSlots) > 0 {
+		result.SecretValues = map[string]string{}
+		for slot, secret := range server.SecretSlots {
+			result.SecretValues[slot] = secret.Value
+		}
 	}
 	return result
 }

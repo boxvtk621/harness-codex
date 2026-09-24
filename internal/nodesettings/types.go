@@ -6,7 +6,18 @@ import (
 	"encoding/json"
 )
 
-const Contract = "harness-node-settings-v1"
+const Contract = "harness-node-settings-v2"
+const MCPDocumentSchema = "harness-mcp-document-v2"
+
+type SecretSlotInput struct {
+	Slot   string  `json:"slot"`
+	Action string  `json:"action"`
+	Secret *string `json:"secret,omitempty"`
+}
+type SecretSlot struct {
+	Slot       string `json:"slot"`
+	Configured bool   `json:"configured"`
+}
 
 type MCPAuthInput struct {
 	Kind         string  `json:"kind"`
@@ -20,23 +31,90 @@ type MCPAuth struct {
 }
 
 type MCPServerInput struct {
-	ID        string       `json:"id"`
-	Name      string       `json:"name"`
-	Enabled   bool         `json:"enabled"`
-	URL       string       `json:"url"`
-	Transport string       `json:"transport"`
-	TimeoutMS int64        `json:"timeoutMs"`
-	Auth      MCPAuthInput `json:"auth"`
+	ID            string            `json:"id"`
+	Name          string            `json:"name"`
+	Enabled       bool              `json:"enabled"`
+	URL           string            `json:"url"`
+	Transport     string            `json:"transport"`
+	TimeoutMS     int64             `json:"timeoutMs"`
+	Auth          MCPAuthInput      `json:"auth"`
+	Command       string            `json:"command,omitempty"`
+	Args          []string          `json:"args,omitempty"`
+	SecretSlots   []SecretSlotInput `json:"secretSlots,omitempty"`
+	ForbiddenPath string            `json:"-"`
+}
+
+func (server *MCPServerInput) UnmarshalJSON(raw []byte) error {
+	type alias MCPServerInput
+	var decoded alias
+	if err := json.Unmarshal(raw, &decoded); err != nil {
+		return err
+	}
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &fields); err != nil {
+		return err
+	}
+	*server = MCPServerInput(decoded)
+	if server.Transport == "streamable_http" {
+		for _, field := range []string{"command", "args", "secretSlots"} {
+			if _, ok := fields[field]; ok {
+				server.ForbiddenPath = field
+				break
+			}
+		}
+	}
+	if server.Transport == "stdio" {
+		for _, field := range []string{"url", "auth"} {
+			if _, ok := fields[field]; ok {
+				server.ForbiddenPath = field
+				break
+			}
+		}
+	}
+	return nil
 }
 
 type MCPServer struct {
-	ID        string  `json:"id"`
-	Name      string  `json:"name"`
-	Enabled   bool    `json:"enabled"`
-	URL       string  `json:"url"`
-	Transport string  `json:"transport"`
-	TimeoutMS int64   `json:"timeoutMs"`
-	Auth      MCPAuth `json:"auth"`
+	ID          string       `json:"id"`
+	Name        string       `json:"name"`
+	Enabled     bool         `json:"enabled"`
+	URL         string       `json:"url"`
+	Transport   string       `json:"transport"`
+	TimeoutMS   int64        `json:"timeoutMs"`
+	Auth        MCPAuth      `json:"auth"`
+	Command     string       `json:"command,omitempty"`
+	Args        []string     `json:"args,omitempty"`
+	SecretSlots []SecretSlot `json:"secretSlots,omitempty"`
+}
+
+func (server MCPServer) MarshalJSON() ([]byte, error) {
+	base := map[string]any{"id": server.ID, "name": server.Name, "enabled": server.Enabled, "transport": server.Transport, "timeoutMs": server.TimeoutMS}
+	if server.Transport == "stdio" {
+		base["command"] = server.Command
+		if server.Args == nil {
+			base["args"] = []string{}
+		} else {
+			base["args"] = server.Args
+		}
+		if server.SecretSlots == nil {
+			base["secretSlots"] = []SecretSlot{}
+		} else {
+			base["secretSlots"] = server.SecretSlots
+		}
+	} else {
+		base["url"] = server.URL
+		base["auth"] = server.Auth
+	}
+	return json.Marshal(base)
+}
+
+type MCPDocumentInput struct {
+	SchemaID string           `json:"schemaId"`
+	Servers  []MCPServerInput `json:"servers"`
+}
+type MCPDocument struct {
+	SchemaID string      `json:"schemaId"`
+	Servers  []MCPServer `json:"servers"`
 }
 
 type Inference struct {
@@ -51,13 +129,15 @@ type SettingsInput struct {
 }
 
 type DraftInput struct {
-	MCPServers []MCPServerInput `json:"mcpServers"`
-	Inference  Inference        `json:"inference"`
+	MCPServers  []MCPServerInput  `json:"mcpServers,omitempty"`
+	MCPDocument *MCPDocumentInput `json:"mcpDocument,omitempty"`
+	Inference   Inference         `json:"inference"`
 }
 
 type Settings struct {
-	MCPServers []MCPServer `json:"mcpServers"`
-	Inference  Inference   `json:"inference"`
+	MCPServers  []MCPServer `json:"-"`
+	MCPDocument MCPDocument `json:"mcpDocument"`
+	Inference   Inference   `json:"inference"`
 }
 
 type Snapshot struct {
@@ -68,6 +148,7 @@ type Snapshot struct {
 	Draft           Settings          `json:"draft"`
 	Applied         *Settings         `json:"applied"`
 	Capabilities    map[string]string `json:"capabilities"`
+	MCPSchema       string            `json:"mcpSchema"`
 	Operation       *Operation        `json:"operation,omitempty"`
 	Observations    []Observation     `json:"observations,omitempty"`
 }
@@ -104,8 +185,10 @@ type Model struct {
 	DefaultServiceTier        *string  `json:"-"`
 	AdditionalSpeedTiers      []string `json:"-"`
 	DisplayName               string   `json:"displayName"`
+	IsDefault                 bool     `json:"isDefault"`
 	ReasoningEfforts          []Mode   `json:"reasoningEfforts"`
 	SpeedModes                []Mode   `json:"speedModes"`
+	Compatibility             string   `json:"compatibility"`
 }
 
 type Mode struct {
@@ -141,7 +224,8 @@ type MCPCheck struct {
 // serialized into an API response.
 type MCPConfig struct {
 	MCPServer
-	BearerToken string
+	BearerToken  string
+	SecretValues map[string]string `json:"-"`
 }
 
 type Provider interface {
@@ -156,14 +240,17 @@ type persistedSecret struct {
 }
 
 type persistedMCP struct {
-	ID          string           `json:"id"`
-	Name        string           `json:"name"`
-	Enabled     bool             `json:"enabled"`
-	URL         string           `json:"url"`
-	Transport   string           `json:"transport"`
-	TimeoutMS   int64            `json:"timeoutMs"`
-	AuthKind    string           `json:"authKind"`
-	BearerToken *persistedSecret `json:"bearerToken,omitempty"`
+	ID          string                     `json:"id"`
+	Name        string                     `json:"name"`
+	Enabled     bool                       `json:"enabled"`
+	URL         string                     `json:"url"`
+	Transport   string                     `json:"transport"`
+	TimeoutMS   int64                      `json:"timeoutMs"`
+	AuthKind    string                     `json:"authKind"`
+	BearerToken *persistedSecret           `json:"bearerToken,omitempty"`
+	Command     string                     `json:"command,omitempty"`
+	Args        []string                   `json:"args,omitempty"`
+	SecretSlots map[string]persistedSecret `json:"secretSlots,omitempty"`
 }
 
 type persistedSettings struct {

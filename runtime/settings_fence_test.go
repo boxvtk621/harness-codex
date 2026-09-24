@@ -11,7 +11,100 @@ import (
 
 	"github.com/boxvtk621/harness-codex/fixture"
 	"github.com/boxvtk621/harness-codex/internal/harnessprotocol"
+	"github.com/boxvtk621/harness-codex/internal/providerauth"
 )
+
+type settingsAuthManager struct {
+	*testAuthManager
+	operation *providerauth.Operation
+	failure   *providerauth.Failure
+}
+
+func (manager *settingsAuthManager) Snapshot(_ context.Context, nodeID string) (providerauth.Envelope, *providerauth.Failure) {
+	envelope := manager.envelope(nodeID)
+	envelope.Operation = manager.operation
+	return envelope, manager.failure
+}
+
+func TestSettingsFenceAllowsUnauthenticatedNodeWithoutPendingAuth(t *testing.T) {
+	ctx := context.Background()
+	const nodeID = "20000000-0000-4000-8000-000000000001"
+	manager := &settingsAuthManager{testAuthManager: &testAuthManager{state: "unauthenticated"}}
+	opened, err := Open(ctx, Config{DataDir: t.TempDir(), NodeID: nodeID, OwnerID: "1-1", RegistryVersion: 1,
+		Adapter: fixture.NewAdapter(), Policies: fixture.NewPolicySource(), Space: fullSpace{}, ManualDispatchForTesting: true,
+		ProviderAuth: manager})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer opened.Close()
+	if opened.providerAuthReady(ctx) {
+		t.Fatal("unauthenticated provider admitted dispatch")
+	}
+	release, err := opened.BeginSettingsChange(ctx)
+	if err != nil {
+		t.Fatalf("unauthenticated settings change: %v", err)
+	}
+	if !opened.settingsApplyBusy() {
+		t.Fatal("settings barrier was not retained")
+	}
+	release()
+	if opened.settingsApplyBusy() {
+		t.Fatal("settings barrier was not released")
+	}
+	if result, err := opened.DispatchNext(ctx); err != nil || result.Outcome != "blocked" {
+		t.Fatalf("unauthenticated dispatch = %+v, %v", result, err)
+	}
+
+	if _, err := opened.db.ExecContext(ctx, "UPDATE node_state SET occupancy='running' WHERE singleton=1"); err != nil {
+		t.Fatal(err)
+	}
+	waitCtx, cancel := context.WithTimeout(ctx, 250*time.Millisecond)
+	defer cancel()
+	done := make(chan error, 1)
+	go func() { _, err := opened.BeginSettingsChange(waitCtx); done <- err }()
+	deadline := time.Now().Add(time.Second)
+	for !opened.settingsApplyBusy() && time.Now().Before(deadline) {
+		time.Sleep(time.Millisecond)
+	}
+	if !opened.settingsApplyBusy() {
+		t.Fatal("settings barrier was not installed while draining")
+	}
+	for name, result := range map[string]Result{
+		"start":  opened.ProviderAuthStart(ctx, nodeID, "command", "device_code", nil),
+		"check":  opened.ProviderAuthCheck(ctx, nodeID, "command"),
+		"cancel": opened.ProviderAuthCancel(ctx, nodeID, "command", "operation"),
+		"logout": opened.ProviderAuthLogout(ctx, nodeID, "command"),
+	} {
+		if result.HTTPStatus != http.StatusConflict {
+			t.Fatalf("provider auth %s crossed settings barrier: %d", name, result.HTTPStatus)
+		}
+	}
+	if err := <-done; !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("drain returned %v", err)
+	}
+}
+
+func TestSettingsFenceRejectsPendingOrUnavailableAuthSnapshot(t *testing.T) {
+	ctx := context.Background()
+	const nodeID = "20000000-0000-4000-8000-000000000001"
+	manager := &settingsAuthManager{testAuthManager: &testAuthManager{state: "unauthenticated"},
+		operation: &providerauth.Operation{Status: "pending"}}
+	opened, err := Open(ctx, Config{DataDir: t.TempDir(), NodeID: nodeID, OwnerID: "1-1", RegistryVersion: 1,
+		Adapter: fixture.NewAdapter(), Policies: fixture.NewPolicySource(), Space: fullSpace{}, ManualDispatchForTesting: true,
+		ProviderAuth: manager})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer opened.Close()
+	if release, err := opened.BeginSettingsChange(ctx); !errors.Is(err, ErrSettingsBusy) || release != nil {
+		t.Fatalf("pending auth allowed settings change: release=%v err=%v", release != nil, err)
+	}
+	manager.operation = nil
+	manager.failure = &providerauth.Failure{Status: http.StatusServiceUnavailable, Code: "provider_unavailable"}
+	if release, err := opened.BeginSettingsChange(ctx); !errors.Is(err, ErrSettingsBusy) || release != nil {
+		t.Fatalf("unavailable auth snapshot allowed settings change: release=%v err=%v", release != nil, err)
+	}
+}
 
 func TestSettingsFenceDrainsWithoutCancelAndReleasesOnTimeout(t *testing.T) {
 	ctx := context.Background()

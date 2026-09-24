@@ -16,7 +16,7 @@ var ErrSettingsBusy = errors.New("node settings lifecycle is busy")
 func (node *Node) BeginSettingsChange(ctx context.Context) (func(), error) {
 	node.startGate.Lock()
 	node.mu.Lock()
-	if node.settingsBarrier || !node.providerAuthReady(ctx) {
+	if node.settingsBarrier || !node.providerAuthSettled(ctx) {
 		node.mu.Unlock()
 		node.startGate.Unlock()
 		return nil, ErrSettingsBusy

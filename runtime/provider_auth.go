@@ -45,6 +45,11 @@ func (node *Node) ProviderAuthCheck(ctx context.Context, nodeID, commandID strin
 	if node.config.ProviderAuth == nil {
 		return providerAuthError(http.StatusUnprocessableEntity, "unsupported_method")
 	}
+	node.startGate.Lock()
+	defer node.startGate.Unlock()
+	if node.settingsApplyBusy() {
+		return providerAuthError(http.StatusConflict, "busy")
+	}
 	envelope, failure := node.config.ProviderAuth.Check(ctx, nodeID, commandID)
 	return providerAuthResult(envelope, failure)
 }
@@ -52,6 +57,11 @@ func (node *Node) ProviderAuthCheck(ctx context.Context, nodeID, commandID strin
 func (node *Node) ProviderAuthCancel(ctx context.Context, nodeID, commandID, operationID string) Result {
 	if node.config.ProviderAuth == nil {
 		return providerAuthError(http.StatusUnprocessableEntity, "unsupported_method")
+	}
+	node.startGate.Lock()
+	defer node.startGate.Unlock()
+	if node.settingsApplyBusy() {
+		return providerAuthError(http.StatusConflict, "busy")
 	}
 	envelope, failure := node.config.ProviderAuth.CancelAuth(ctx, nodeID, commandID, operationID)
 	return providerAuthResult(envelope, failure)
@@ -90,6 +100,16 @@ func (node *Node) providerAuthReady(ctx context.Context) bool {
 	}
 	envelope, failure := node.config.ProviderAuth.Snapshot(ctx, node.config.NodeID)
 	return failure == nil && envelope.State == "authenticated" && (envelope.Operation == nil || envelope.Operation.Status != "pending")
+}
+
+// Settings can be changed before login, but not during an auth operation.
+// Dispatch still requires providerAuthReady.
+func (node *Node) providerAuthSettled(ctx context.Context) bool {
+	if node.config.ProviderAuth == nil {
+		return true
+	}
+	envelope, failure := node.config.ProviderAuth.Snapshot(ctx, node.config.NodeID)
+	return failure == nil && (envelope.Operation == nil || envelope.Operation.Status != "pending")
 }
 
 func providerAuthResult(envelope providerauth.Envelope, failure *providerauth.Failure) Result {

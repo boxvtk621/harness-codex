@@ -116,7 +116,7 @@ func TestCatalogAndMCPCheckUseProviderNeutralContract(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if page.SchemaID != "harness-model-catalog-v1" || page.NodeID != "node" || page.State != "fresh" || page.CatalogRevision != 2 || len(page.Models) != 1 || page.Models[0].DisplayName != "m" || page.Models[0].ReasoningEfforts == nil || page.Models[0].SpeedModes == nil {
+	if page.SchemaID != "harness-model-catalog-v2" || page.NodeID != "node" || page.State != "fresh" || page.CatalogRevision != 2 || len(page.Models) != 1 || page.Models[0].DisplayName != "m" || page.Models[0].ReasoningEfforts == nil || page.Models[0].SpeedModes == nil {
 		t.Fatalf("unexpected catalog: %#v", page)
 	}
 	secret := "token"
@@ -338,3 +338,95 @@ func TestChangingBearerToNoneRemovesSecret(t *testing.T) {
 
 func jsonBytes(value any) ([]byte, error) { return json.Marshal(value) }
 func contains(value, part []byte) bool    { return bytes.Contains(value, part) }
+
+func TestV2StdioSecretSlotsAndLocalValidation(t *testing.T) {
+	service, err := Open(t.TempDir(), "node", fakeProvider{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	secret := "hidden-stdio-value"
+	server := MCPServerInput{ID: "local", Name: "Local", Enabled: true, Transport: "stdio", Command: "/usr/bin/mcp-local", Args: []string{"serve"}, TimeoutMS: 5000, SecretSlots: []SecretSlotInput{{Slot: "API_KEY", Action: "replace", Secret: &secret}}}
+	document := MCPDocumentInput{SchemaID: MCPDocumentSchema, Servers: []MCPServerInput{server}}
+	if err := service.ValidateMCPDocument(document); err != nil {
+		t.Fatal(err)
+	}
+	if service.Snapshot().DraftRevision != 0 {
+		t.Fatal("validation wrote state")
+	}
+	snapshot, err := service.Update(SettingsInput{ExpectedRevision: 0, Draft: DraftInput{MCPDocument: &document}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if snapshot.SchemaID != Contract || snapshot.MCPSchema != MCPDocumentSchema || len(snapshot.Draft.MCPDocument.Servers) != 1 {
+		t.Fatalf("unexpected V2 snapshot: %#v", snapshot)
+	}
+	public, _ := json.Marshal(snapshot)
+	if bytes.Contains(public, []byte(secret)) || bytes.Contains(public, []byte("env")) {
+		t.Fatalf("stdio secret leaked: %s", public)
+	}
+	server.SecretSlots = []SecretSlotInput{{Slot: "API_KEY", Action: "keep"}}
+	document.Servers = []MCPServerInput{server}
+	if _, err := service.Update(SettingsInput{ExpectedRevision: 1, Draft: DraftInput{MCPDocument: &document}}); err != nil {
+		t.Fatal(err)
+	}
+	service.mu.Lock()
+	config := providerMCP(service.state.Draft.MCPServers[0])
+	service.mu.Unlock()
+	if config.SecretValues["API_KEY"] != secret {
+		t.Fatal("stable secret slot was not retained")
+	}
+	server.ForbiddenPath = "url"
+	document.Servers = []MCPServerInput{server}
+	if err := service.ValidateMCPDocument(document); !errors.Is(err, ErrInvalid) {
+		t.Fatalf("type-specific field accepted: %v", err)
+	}
+	server.ForbiddenPath = ""
+	server.SecretSlots = []SecretSlotInput{{Slot: "API_KEY", Action: "remove"}}
+	document.Servers = []MCPServerInput{server}
+	if _, err := service.Update(SettingsInput{ExpectedRevision: 2, Draft: DraftInput{MCPDocument: &document}}); err != nil {
+		t.Fatal(err)
+	}
+	service.mu.Lock()
+	config = providerMCP(service.state.Draft.MCPServers[0])
+	service.mu.Unlock()
+	if len(config.SecretValues) != 0 {
+		t.Fatal("removed secret survived")
+	}
+}
+
+func TestPersistedV1BearerMigratesLosslessly(t *testing.T) {
+	directory := t.TempDir()
+	service, err := Open(directory, "node", fakeProvider{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	secret := "legacy-secret"
+	if _, err := service.Update(draftInput(0, "replace", &secret)); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(directory, "node-settings-v1.json")
+	raw, _ := os.ReadFile(path)
+	var state persistedState
+	if err := json.Unmarshal(raw, &state); err != nil {
+		t.Fatal(err)
+	}
+	state.Contract = "harness-node-settings-v1"
+	raw, _ = json.Marshal(state)
+	if err := os.WriteFile(path, raw, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	reopened, err := Open(directory, "node", fakeProvider{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	snapshot := reopened.Snapshot()
+	if snapshot.SchemaID != Contract || !snapshot.Draft.MCPDocument.Servers[0].Auth.BearerTokenConfigured {
+		t.Fatalf("legacy bearer lost: %#v", snapshot)
+	}
+	reopened.mu.Lock()
+	config := providerMCP(reopened.state.Draft.MCPServers[0])
+	reopened.mu.Unlock()
+	if config.BearerToken != secret {
+		t.Fatal("legacy secret changed")
+	}
+}

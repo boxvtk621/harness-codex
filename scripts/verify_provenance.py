@@ -40,6 +40,10 @@ LOCAL_ADDITIONS = {
 # Repository-native provider authentication was designed and implemented here;
 # these files were not extracted from the pinned monorepo source.
 LOCAL_DESTINATIONS = {
+	"adapters/codex/settings_test.go",
+	"api/node_settings_v2_test.go",
+	"runtime/settings_fence.go",
+	"runtime/settings_fence_test.go",
     "runtime/failed_tail_retry.go",
     "runtime/failed_tail_retry_test.go",
     "adapters/codex/failed_tail_retry.go",

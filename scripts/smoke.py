@@ -166,10 +166,15 @@ const additionalSpeedTiers=uniqueIdentifiers(Array.isArray(model.additionalSpeed
 const defaultReasoningEffort=model.defaultReasoningEffort??null,defaultServiceTier=model.defaultServiceTier??null;
 if(defaultReasoningEffort!==null&&!reasoning.includes(defaultReasoningEffort))throw new Error('default reasoning effort mismatch');
 if(defaultServiceTier!==null&&(typeof defaultServiceTier!=='string'||!serviceTiers.includes(defaultServiceTier)))throw new Error('default service tier mismatch');
-return {id:model.id,model:model.model,reasoning,defaultReasoningEffort,serviceTiers,defaultServiceTier,additionalSpeedTiers};});
+return {id:model.id,model:model.model,isDefault:model.isDefault??null,reasoning,defaultReasoningEffort,serviceTiers,defaultServiceTier,additionalSpeedTiers};});
 uniqueIdentifiers(modelCapabilities.map(model=>model.id),'model id');
 uniqueIdentifiers(modelCapabilities.map(model=>model.model),'model');
 const selectedModel=modelCapabilities[0].id;
+const defaultModels=modelCapabilities.filter(model=>model.isDefault===true);
+if(defaultModels.length!==1||!defaultModels[0].defaultReasoningEffort)throw new Error('native default model/effort unavailable');
+const defaultStarted=await call('thread/start',{model:null,serviceTier:'default',cwd:'/workspace',approvalPolicy:'never',sandbox:'read-only',
+developerInstructions:'deny-only container smoke',config:{features,mcp_servers:{},model_reasoning_effort:defaultModels[0].defaultReasoningEffort,web_search:'disabled'}});
+if(!defaultStarted?.thread?.id)throw new Error('native null/default thread start failed');
 const started=await call('thread/start',{model:selectedModel,cwd:'/workspace',approvalPolicy:'never',sandbox:'read-only',
 developerInstructions:'deny-only container smoke',config:{features,mcp_servers:{},web_search:'disabled'}});
 if(!started?.thread?.id||started.approvalPolicy!=='never'||started.sandbox?.type!=='readOnly'||started.sandbox?.networkAccess!==false)throw new Error('thread policy mismatch');
@@ -188,7 +193,7 @@ if(++pages>10)throw new Error('feature pagination overflow');}while(cursor!==nul
 for(const name of denied)if(observed.get(name)!==false)throw new Error('native feature enabled: '+name);
 const mcp=await call('mcpServerStatus/list',{threadId:activeThreadId,limit:100,detail:'toolsAndAuthOnly'});
 if(!Array.isArray(mcp?.data)||mcp.data.length!==0||mcp.nextCursor!==null)throw new Error('native MCP isolation mismatch');
-console.log(JSON.stringify({marker:'CODEX_NATIVE_CAPABILITY_PASS',version:'0.155.1',selectedModel,threadId:started.thread.id,threadResume,mcpServers:mcp.data.length,models:modelCapabilities,zeroTurns:true}));stop();setTimeout(()=>process.exit(0),250);
+console.log(JSON.stringify({marker:'CODEX_NATIVE_CAPABILITY_PASS',version:'0.155.1',selectedModel,defaultThreadId:defaultStarted.thread.id,threadId:started.thread.id,threadResume,mcpServers:mcp.data.length,models:modelCapabilities,zeroTurns:true}));stop();setTimeout(()=>process.exit(0),250);
 })().catch(error=>{console.error(error.message);stop();setTimeout(()=>process.exit(1),250)});""".replace('__DENIED__', json.dumps(codex_denied_features()))
             native = subprocess.run([
                 'docker', 'run', '--rm', '--network', 'none', '--read-only', '--user', '10001:10001',
@@ -209,6 +214,7 @@ console.log(JSON.stringify({marker:'CODEX_NATIVE_CAPABILITY_PASS',version:'0.155
             assert (native_capabilities.get('marker') == 'CODEX_NATIVE_CAPABILITY_PASS'
                     and native_capabilities.get('version') == '0.155.1'
                     and isinstance(native_thread_id, str) and native_thread_id
+                    and isinstance(native_capabilities.get('defaultThreadId'), str)
                     and native_resume in expected_resume_results
                     and native_capabilities.get('mcpServers') == 0
                     and native_capabilities.get('zeroTurns') is True

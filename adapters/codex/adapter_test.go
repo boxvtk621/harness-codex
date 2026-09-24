@@ -1869,9 +1869,13 @@ func runAdapterHelper() int {
 		case "model/list":
 			models := []map[string]any{}
 			for _, id := range []string{"fixture-model", "fixture-entitled-model"} {
-				models = append(models, map[string]any{"id": id, "model": id,
+				defaultEffort := "medium"
+				if id == "fixture-entitled-model" {
+					defaultEffort = "high"
+				}
+				models = append(models, map[string]any{"id": id, "model": id, "isDefault": id == "fixture-model",
 					"supportedReasoningEfforts": []map[string]string{{"reasoningEffort": "medium"}, {"reasoningEffort": "high"}},
-					"defaultReasoningEffort":    "medium", "serviceTiers": []map[string]string{{"id": "default"}, {"id": "priority"}},
+					"defaultReasoningEffort":    defaultEffort, "serviceTiers": []map[string]string{{"id": "default"}, {"id": "priority"}},
 					"defaultServiceTier": "default"})
 			}
 			_ = encoder.Encode(map[string]any{"id": frame.ID, "result": map[string]any{"data": models, "nextCursor": nil}})
@@ -1986,7 +1990,7 @@ func runAdapterHelper() int {
 			switch params.Input[0].Text {
 			case "hold-unsupported-interrupt", "unsupported-model-no-start":
 			case "unsupported-model", "unsupported-model-late-start":
-				if params.Model == "fixture-entitled-model" {
+				if params.Model != nil && *params.Model == "fixture-entitled-model" {
 					emitAssistant(encoder, activeThread, activeTurn, "answer:available-model")
 					emitTerminal(encoder, activeThread, activeTurn, "completed")
 				} else {
@@ -2044,7 +2048,7 @@ func runAdapterHelper() int {
 func validHelperPolicy(params nativeThreadOptions) bool {
 	features, ok := params.Config["features"].(map[string]any)
 	mcpServers, mcpOK := params.Config["mcp_servers"].(map[string]any)
-	if (params.Model != "fixture-model" && params.Model != "fixture-entitled-model") || params.CWD == "" || params.ApprovalsReviewer != "user" || !ok || len(features) != len(deniedNativeFeatures) || !mcpOK {
+	if (params.Model != nil && *params.Model != "fixture-model" && *params.Model != "fixture-entitled-model") || params.ServiceTier == nil || (*params.ServiceTier != "default" && *params.ServiceTier != "priority") || params.CWD == "" || params.ApprovalsReviewer != "user" || !ok || len(features) != len(deniedNativeFeatures) || !mcpOK {
 		return false
 	}
 	explicit := params.DeveloperInstructions == "fixture tool policy"
@@ -2055,7 +2059,7 @@ func validHelperPolicy(params nativeThreadOptions) bool {
 	}
 	for _, value := range mcpServers {
 		entry, ok := value.(map[string]any)
-		if !ok || entry["url"] == "" {
+		if !ok || (entry["url"] == "" && entry["command"] == "") {
 			return false
 		}
 		if variable, ok := entry["bearer_token_env_var"].(string); ok && os.Getenv(variable) == "" {
@@ -2081,6 +2085,7 @@ func validHelperPolicy(params nativeThreadOptions) bool {
 
 func validHelperTurnPolicy(params nativeTurnParams) bool {
 	return params.ApprovalPolicy == "never" && params.ApprovalsReviewer == "user" &&
+		params.ServiceTier != nil && (*params.ServiceTier == "default" || *params.ServiceTier == "priority") &&
 		params.SandboxPolicy.Type == "readOnly" && !params.SandboxPolicy.NetworkAccess &&
 		len(params.SandboxPolicy.WritableRoots) == 0 && !params.SandboxPolicy.ExcludeTmpdirEnvVar && !params.SandboxPolicy.ExcludeSlashTmp
 }
